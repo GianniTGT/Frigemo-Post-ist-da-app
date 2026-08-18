@@ -1,0 +1,6 @@
+id,name,email,department,lang,active
+1001,Hans Muster,h.muster@frigemo.ch,Technik / Unterhalt,de,1
+1002,Claire Dubois,c.dubois@frigemo.ch,Production,fr,1
+1003,Marc Werlen,m.werlen@frigemo.ch,Facility Management,de,1
+1004,Sophie Perret,s.perret@frigemo.ch,Qualite / QS,fr,1
+1005,Luca Rossi,l.rossi@frigemo.ch,Logistique,fr,0

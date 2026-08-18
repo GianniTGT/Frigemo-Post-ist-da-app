@@ -1,0 +1,977 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../api_service.dart';
+import '../config.dart';
+import '../l10n.dart';
+import '../main.dart' show AppColors;
+
+class DeliveryScreen extends StatefulWidget {
+  final LocaleController locale;
+
+  const DeliveryScreen({super.key, required this.locale});
+
+  @override
+  State<DeliveryScreen> createState() => _DeliveryScreenState();
+}
+
+class _DeliveryScreenState extends State<DeliveryScreen> {
+  final ApiService _api = ApiService();
+  final TextEditingController _searchCtrl = TextEditingController();
+  final TextEditingController _noteCtrl = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+
+  CarrierOption? _carrier;
+  Employee? _recipient;
+  int _quantity = 1;
+  String _kind = kShipmentKinds.first;
+  String _location = kPickupLocations.first;
+
+  List<Employee> _results = const [];
+  bool _searching = false;
+  bool _searchFailed = false;
+  bool _submitting = false;
+  bool _success = false;
+  bool _online = true;
+
+  Timer? _debounce;
+  Timer? _idle;
+  Timer? _successTimer;
+  Timer? _healthTimer;
+
+  L10n get _l => L10n(widget.locale.value);
+  bool get _ready => _carrier != null && _recipient != null && !_submitting;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(_onSearchChanged);
+    _checkHealth();
+    _healthTimer = Timer.periodic(AppConfig.healthInterval, (_) => _checkHealth());
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _idle?.cancel();
+    _successTimer?.cancel();
+    _healthTimer?.cancel();
+    _searchCtrl.dispose();
+    _noteCtrl.dispose();
+    _searchFocus.dispose();
+    _api.dispose();
+    super.dispose();
+  }
+
+  // --- Server-Status ---------------------------------------------------
+
+  Future<void> _checkHealth() async {
+    final ok = await _api.health();
+    if (!mounted || ok == _online) return;
+    setState(() => _online = ok);
+  }
+
+  // --- Leerlauf: Formular zurücksetzen, wenn niemand mehr davorsteht ----
+
+  void _touch() {
+    _idle?.cancel();
+    if (_carrier == null && _recipient == null && _searchCtrl.text.isEmpty) {
+      return;
+    }
+    _idle = Timer(AppConfig.idleTimeout, () {
+      if (mounted && !_submitting) _reset();
+    });
+  }
+
+  // --- Empfängersuche --------------------------------------------------
+
+  void _onSearchChanged() {
+    // Sobald wieder getippt wird, ist die alte Auswahl ungültig.
+    if (_recipient != null) setState(() => _recipient = null);
+
+    _touch();
+    _debounce?.cancel();
+
+    final query = _searchCtrl.text.trim();
+    if (query.length < AppConfig.minSearchChars) {
+      setState(() {
+        _results = const [];
+        _searching = false;
+        _searchFailed = false;
+      });
+      return;
+    }
+
+    setState(() => _searching = true);
+    _debounce = Timer(AppConfig.searchDebounce, () => _runSearch(query));
+  }
+
+  Future<void> _runSearch(String query) async {
+    try {
+      final found = await _api.searchEmployees(query);
+      if (!mounted || _searchCtrl.text.trim() != query) return;
+      setState(() {
+        _results = found;
+        _searching = false;
+        _searchFailed = false;
+        _online = true;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _results = const [];
+        _searching = false;
+        _searchFailed = true;
+        if (e.kind == ApiErrorKind.network || e.kind == ApiErrorKind.timeout) {
+          _online = false;
+        }
+      });
+    }
+  }
+
+  void _selectRecipient(Employee employee) {
+    _searchFocus.unfocus();
+    setState(() {
+      _recipient = employee;
+      _results = const [];
+      // Listener würde die Auswahl sofort wieder löschen – deshalb erst
+      // abhängen, Text setzen, dann wieder anhängen.
+      _searchCtrl.removeListener(_onSearchChanged);
+      _searchCtrl.text = employee.name;
+      _searchCtrl.addListener(_onSearchChanged);
+    });
+    _touch();
+  }
+
+  void _clearRecipient() {
+    setState(() {
+      _recipient = null;
+      _results = const [];
+      _searchCtrl.removeListener(_onSearchChanged);
+      _searchCtrl.clear();
+      _searchCtrl.addListener(_onSearchChanged);
+    });
+    _searchFocus.requestFocus();
+    _touch();
+  }
+
+  // --- Senden ----------------------------------------------------------
+
+  Future<void> _submit() async {
+    if (!_ready) return;
+    setState(() => _submitting = true);
+    _idle?.cancel();
+
+    final draft = DeliveryDraft(
+      carrierId: _carrier!.id,
+      carrierLabel: _carrier!.id == 'other' ? _l.t('carrier.other') : _carrier!.label,
+      employeeId: _recipient!.id,
+      quantity: _quantity,
+      kind: _kind,
+      location: _location,
+      note: _noteCtrl.text.trim(),
+    );
+
+    try {
+      await _api.submitDelivery(draft);
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _success = true;
+        _online = true;
+      });
+      _successTimer?.cancel();
+      _successTimer = Timer(AppConfig.successDuration, () {
+        if (mounted) _reset();
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        if (e.kind == ApiErrorKind.network || e.kind == ApiErrorKind.timeout) {
+          _online = false;
+        }
+      });
+      _showError(e);
+    }
+  }
+
+  void _showError(ApiException error) {
+    final retryable = error.kind != ApiErrorKind.mailFailed &&
+        error.kind != ApiErrorKind.unauthorized;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.card,
+        icon: Icon(
+          error.kind == ApiErrorKind.mailFailed
+              ? Icons.mark_email_unread_outlined
+              : Icons.error_outline,
+          size: 48,
+          color: error.kind == ApiErrorKind.mailFailed
+              ? AppColors.alert
+              : AppColors.danger,
+        ),
+        title: Text(
+          _l.t('error.title'),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          _l.t(error.messageKey),
+          style: const TextStyle(fontSize: 18, height: 1.4),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              if (error.kind == ApiErrorKind.mailFailed) _reset();
+            },
+            child: Text(_l.t('close'), style: const TextStyle(fontSize: 18)),
+          ),
+          if (retryable)
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              ),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _submit();
+              },
+              child: Text(_l.t('retry'), style: const TextStyle(fontSize: 18)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _reset() {
+    _idle?.cancel();
+    _successTimer?.cancel();
+    setState(() {
+      _carrier = null;
+      _recipient = null;
+      _quantity = 1;
+      _kind = kShipmentKinds.first;
+      _location = kPickupLocations.first;
+      _results = const [];
+      _searching = false;
+      _searchFailed = false;
+      _success = false;
+      _searchCtrl.removeListener(_onSearchChanged);
+      _searchCtrl.clear();
+      _searchCtrl.addListener(_onSearchChanged);
+      _noteCtrl.clear();
+    });
+  }
+
+  // --- Telefon ---------------------------------------------------------
+
+  Future<void> _call(String number) async {
+    final uri = Uri(scheme: 'tel', path: number.replaceAll(' ', ''));
+    final ok = await launchUrl(uri).catchError((_) => false);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${_l.t('phone.failed')} $number')),
+      );
+    }
+  }
+
+  void _showPhones() {
+    _touch();
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: Text(
+          _l.t('phone.title'),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: SizedBox(
+          width: 460,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final c in kPhoneContacts)
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.accent,
+                    radius: 26,
+                    child: Icon(Icons.call, color: Colors.white, size: 26),
+                  ),
+                  title: Text(
+                    widget.locale.value == AppLang.fr ? c.labelFr : c.labelDe,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 18,
+                    ),
+                  ),
+                  subtitle: Text(
+                    c.number,
+                    style: const TextStyle(fontSize: 20, letterSpacing: 0.5),
+                  ),
+                  onTap: () {
+                    Navigator.pop(dialogContext);
+                    _call(c.number);
+                  },
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(_l.t('close'), style: const TextStyle(fontSize: 18)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Aufbau ----------------------------------------------------------
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (_) => _touch(),
+      child: Scaffold(
+        appBar: _appBar(),
+        body: SafeArea(
+          child: _success ? _successView() : _formView(),
+        ),
+        bottomNavigationBar: _success ? null : _sendBar(),
+      ),
+    );
+  }
+
+  PreferredSizeWidget _appBar() {
+    return AppBar(
+      backgroundColor: AppColors.ink,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      toolbarHeight: 82,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            _l.t('app.title'),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+          ),
+          Text(
+            _l.t('app.subtitle').toUpperCase(),
+            style: const TextStyle(
+              fontSize: 12,
+              letterSpacing: 2.4,
+              color: Color(0xFF9FB3C1),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton.icon(
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          ),
+          onPressed: () {
+            widget.locale.toggle();
+            _touch();
+          },
+          icon: const Icon(Icons.language, size: 24),
+          label: Text(
+            _l.t('lang.switch'),
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Padding(
+          padding: const EdgeInsets.only(right: 16),
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: _showPhones,
+            icon: const Icon(Icons.phone, size: 22),
+            label: Text(
+              _l.t('phone.button'),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+      ],
+      bottom: _online
+          ? null
+          : PreferredSize(
+              preferredSize: const Size.fromHeight(44),
+              child: Container(
+                width: double.infinity,
+                color: AppColors.alert,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.wifi_off, color: Colors.white, size: 20),
+                    const SizedBox(width: 10),
+                    Text(
+                      _l.t('offline'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _formView() {
+    // Scrollbar statt Spacer: kein Overflow auf kleineren oder hochkant
+    // montierten Bildschirmen.
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _stepLabel('1', _l.t('step.carrier')),
+          const SizedBox(height: 14),
+          _carrierGrid(),
+          const SizedBox(height: 32),
+          _stepLabel('2', _l.t('step.recipient')),
+          const SizedBox(height: 14),
+          _recipientField(),
+          const SizedBox(height: 32),
+          _stepLabel('3', _l.t('step.details')),
+          const SizedBox(height: 14),
+          _detailsCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepLabel(String number, String text) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: AppColors.ink,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            number,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          text.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 15,
+            letterSpacing: 1.8,
+            fontWeight: FontWeight.w700,
+            color: AppColors.inkSoft,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _carrierGrid() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth > 900 ? 4 : 2;
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            mainAxisExtent: 78,
+            crossAxisSpacing: 14,
+            mainAxisSpacing: 14,
+          ),
+          itemCount: kCarriers.length,
+          itemBuilder: (context, index) {
+            final c = kCarriers[index];
+            final selected = _carrier?.id == c.id;
+            final label = c.id == 'other' ? _l.t('carrier.other') : c.label;
+
+            return Material(
+              color: Color(c.background),
+              borderRadius: BorderRadius.circular(12),
+              elevation: selected ? 6 : 1,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  setState(() => _carrier = c);
+                  _touch();
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected ? AppColors.ink : Colors.transparent,
+                      width: 4,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(c.foreground),
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _recipientField() {
+    if (_recipient != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.accent, width: 2),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: AppColors.accent, size: 30),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _recipient!.name,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (_recipient!.department.isNotEmpty)
+                    Text(
+                      _recipient!.department,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: AppColors.inkSoft,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _clearRecipient,
+              icon: const Icon(Icons.close, size: 22),
+              label: Text(
+                _l.t('search.change'),
+                style: const TextStyle(fontSize: 17),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: TextField(
+            controller: _searchCtrl,
+            focusNode: _searchFocus,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: _l.t('search.hint'),
+              prefixIcon: const Icon(Icons.search, size: 28),
+              suffixIcon: _searching
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
+                    )
+                  : null,
+              border: InputBorder.none,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+            ),
+            style: const TextStyle(fontSize: 21),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _searchFeedback(),
+      ],
+    );
+  }
+
+  Widget _searchFeedback() {
+    final query = _searchCtrl.text.trim();
+
+    if (_searchFailed) {
+      return _hintRow(
+        Icons.cloud_off,
+        _l.t(_online ? 'error.server' : 'error.network'),
+        AppColors.danger,
+        action: TextButton(
+          onPressed: () => _runSearch(query),
+          child: Text(_l.t('retry'), style: const TextStyle(fontSize: 17)),
+        ),
+      );
+    }
+
+    if (query.length < AppConfig.minSearchChars) {
+      return _hintRow(Icons.info_outline, _l.t('search.min'), AppColors.inkSoft);
+    }
+
+    if (_searching) return const SizedBox(height: 8);
+
+    if (_results.isEmpty) {
+      return _hintRow(
+        Icons.person_off_outlined,
+        _l.t('search.none'),
+        AppColors.inkSoft,
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < _results.length; i++) ...[
+            if (i > 0) const Divider(height: 1, color: AppColors.line),
+            ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              title: Text(
+                _results[i].name,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+              ),
+              subtitle: _results[i].department.isEmpty
+                  ? null
+                  : Text(
+                      _results[i].department,
+                      style: const TextStyle(fontSize: 16),
+                    ),
+              trailing: const Icon(Icons.chevron_right, size: 28),
+              onTap: () => _selectRecipient(_results[i]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _hintRow(IconData icon, String text, Color color, {Widget? action}) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(text, style: TextStyle(fontSize: 16, color: color)),
+        ),
+        if (action != null) action,
+      ],
+    );
+  }
+
+  Widget _detailsCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                _l.t('quantity'),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              _stepper(),
+            ],
+          ),
+          const SizedBox(height: 22),
+          Text(
+            _l.t('kind.label'),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final k in kShipmentKinds)
+                _choiceChip(
+                  label: _l.t('kind.$k'),
+                  selected: _kind == k,
+                  color: k == 'chilled' ? AppColors.alert : AppColors.ink,
+                  onTap: () {
+                    setState(() {
+                      _kind = k;
+                      if (k == 'chilled') _location = 'coldroom';
+                    });
+                    _touch();
+                  },
+                ),
+            ],
+          ),
+          if (_kind == 'chilled') ...[
+            const SizedBox(height: 12),
+            _hintRow(Icons.ac_unit, _l.t('chilled.warning'), AppColors.alert),
+          ],
+          const SizedBox(height: 22),
+          Text(
+            _l.t('location.label'),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final loc in kPickupLocations)
+                _choiceChip(
+                  label: _l.t('location.$loc'),
+                  selected: _location == loc,
+                  color: AppColors.ink,
+                  onTap: () {
+                    setState(() => _location = loc);
+                    _touch();
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          TextField(
+            controller: _noteCtrl,
+            maxLength: 120,
+            style: const TextStyle(fontSize: 18),
+            decoration: InputDecoration(
+              labelText: _l.t('note.label'),
+              labelStyle: const TextStyle(fontSize: 17),
+              counterText: '',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            ),
+            onChanged: (_) => _touch(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepper() {
+    return Row(
+      children: [
+        _roundButton(Icons.remove, _quantity > 1, () {
+          setState(() => _quantity--);
+          _touch();
+        }),
+        SizedBox(
+          width: 72,
+          child: Text(
+            '$_quantity',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
+          ),
+        ),
+        _roundButton(Icons.add, _quantity < 99, () {
+          setState(() => _quantity++);
+          _touch();
+        }),
+      ],
+    );
+  }
+
+  Widget _roundButton(IconData icon, bool enabled, VoidCallback onTap) {
+    return Material(
+      color: enabled ? AppColors.surface : AppColors.surface.withValues(alpha: 0.5),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: enabled ? onTap : null,
+        child: SizedBox(
+          width: 56,
+          height: 56,
+          child: Icon(
+            icon,
+            size: 28,
+            color: enabled ? AppColors.ink : AppColors.line,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _choiceChip({
+    required String label,
+    required bool selected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? color : AppColors.surface,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: selected ? color : AppColors.line, width: 2),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: selected ? Colors.white : AppColors.ink,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sendBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+      decoration: const BoxDecoration(
+        color: AppColors.card,
+        border: Border(top: BorderSide(color: AppColors.line)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 72,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              disabledBackgroundColor: AppColors.line,
+              foregroundColor: Colors.white,
+              disabledForegroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: _ready ? _submit : null,
+            icon: _submitting
+                ? const SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 3,
+                    ),
+                  )
+                : const Icon(Icons.send_rounded, size: 28),
+            label: Text(
+              _submitting ? _l.t('sending') : _l.t('send'),
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _successView() {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(32),
+        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 44),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle, color: AppColors.accent, size: 104),
+            const SizedBox(height: 24),
+            Text(
+              _l.t('success.title'),
+              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _l.t('success.body', args: {'name': _recipient?.name ?? ''}),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 20, color: AppColors.inkSoft),
+            ),
+            const SizedBox(height: 32),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.ink,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: _reset,
+              child: Text(
+                _l.t('success.next'),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

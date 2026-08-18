@@ -1,0 +1,109 @@
+name: APK bauen und als Release veröffentlichen
+
+# Der Build startet nur bei einem Versions-Tag oder von Hand.
+# Das APK wird NICHT als Actions-Artefakt hochgeladen (das würde auf das
+# 500-MB-Speicherkontingent zählen), sondern direkt an ein Release gehängt.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version, z. B. v1.0.0'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write   # nötig, damit der Job ein Release anlegen darf
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Version bestimmen
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Java einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter einrichten
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Android-Projekt erzeugen, falls nicht vorhanden
+        working-directory: app
+        run: |
+          if [ ! -d android ]; then
+            echo "Ordner android/ fehlt – wird generiert."
+            flutter create --platforms=android --project-name frigemo_post_terminal .
+          fi
+
+      - name: Abhängigkeiten laden
+        working-directory: app
+        run: flutter pub get
+
+      - name: Statische Analyse
+        working-directory: app
+        run: flutter analyze --no-fatal-infos
+
+      # Optional: eigener Signaturschlüssel. Ohne die Secrets baut Flutter mit
+      # dem Debug-Key – installierbar, aber ein späterer Wechsel auf einen
+      # eigenen Key erzwingt eine Neuinstallation auf dem Tablet.
+      - name: Signaturschlüssel einrichten
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        working-directory: app/android
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > frigemo.keystore
+          cat > key.properties <<EOF
+          storeFile=frigemo.keystore
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+      - name: APK bauen
+        working-directory: app
+        run: |
+          flutter build apk --release \
+            --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }} \
+            --dart-define=API_KEY=${{ secrets.TERMINAL_API_KEY }} \
+            --dart-define=TERMINAL_ID=${{ vars.TERMINAL_ID }} \
+            --dart-define=DEFAULT_LANGUAGE=${{ vars.DEFAULT_LANGUAGE || 'fr' }}
+
+      - name: APK umbenennen
+        run: |
+          mv app/build/app/outputs/flutter-apk/app-release.apk \
+             frigemo-post-terminal-${{ steps.version.outputs.tag }}.apk
+          ls -lh frigemo-post-terminal-*.apk
+
+      - name: Release anlegen und APK anhängen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Terminal Réception ${{ steps.version.outputs.tag }}
+          body: |
+            Terminal de réception Frigemo Cressier.
+
+            **Serveur configuré :** `${{ vars.API_BASE_URL }}`
+            **Terminal :** `${{ vars.TERMINAL_ID }}`
+
+            Installation : télécharger l'APK sur la tablette, autoriser
+            l'installation depuis cette source, puis activer l'épinglage
+            d'écran (Paramètres → Sécurité → Épinglage d'écran).
+          files: frigemo-post-terminal-${{ steps.version.outputs.tag }}.apk

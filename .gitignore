@@ -1,0 +1,20 @@
+# Node
+node_modules/
+server/.env
+server/data/employees.csv
+server/data/*.db
+server/data/*.db-wal
+server/data/*.db-shm
+
+# Flutter
+app/.dart_tool/
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/pubspec.lock
+.DS_Store
+
+# Android-Signatur (nie committen!)
+app/android/key.properties
+app/android/*.keystore
+app/android/*.jks
