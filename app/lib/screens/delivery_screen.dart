@@ -343,21 +343,50 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       foregroundColor: Colors.white,
       elevation: 0,
       toolbarHeight: 82,
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+      titleSpacing: 16,
+      title: Row(
         children: [
-          Text(
-            _l.t('app.title'),
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+          // Weisse Flaeche, weil der Zusatz "natürlich frischer" im Logo
+          // dunkel ist und auf dem dunklen Balken sonst verschwindet.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Image.asset(
+              'assets/frigemo-logo.png',
+              height: 34,
+              fit: BoxFit.contain,
+            ),
           ),
-          Text(
-            _l.t('app.subtitle').toUpperCase(),
-            style: const TextStyle(
-              fontSize: 12,
-              letterSpacing: 2.4,
-              color: Color(0xFF9FB3C1),
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _l.t('app.title'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  _l.t('app.subtitle').toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    letterSpacing: 2.4,
+                    color: Color(0xFF9FB3C1),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
