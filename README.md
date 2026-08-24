@@ -128,8 +128,10 @@ d'environnement et ne sont écrits dans aucun fichier.
 ## Points ouverts
 
 - Numéros de téléphone dans `app/lib/config.dart` : ce sont des exemples.
-- Aucun test automatisé pour l'instant, ni côté serveur ni côté terminal ;
-  le workflow ne lance que `flutter analyze`.
+- Côté terminal, seuls `l10n.dart` et la bascule de langue sont testés
+  (`app/test/widget_test.dart`) ; l'écran lui-même dépend du réseau et de
+  minuteries, et demanderait un montage de test à part.
+- Côté serveur, aucun test automatisé pour l'instant.
 - Le SMTP de frigemo doit autoriser l'IP du serveur en relais interne, ou
   utiliser un compte Microsoft 365 dédié (dans ce cas `SMTP_SECURE=true`, port 587).
 - Prévoir un service systemd et une sauvegarde de `server/data/deliveries.db`.

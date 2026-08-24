@@ -95,6 +95,10 @@ jobs:
         working-directory: app
         run: flutter analyze --no-fatal-infos
 
+      - name: Tests
+        working-directory: app
+        run: flutter test
+
       # Der fragile Teil ist inject_signing.py: es patcht eine Datei, die
       # Flutter generiert und jederzeit aendern kann. Hier laeuft es gegen die
       # echte, gerade erzeugte Vorlage und bricht ab, wenn sie nicht mehr
