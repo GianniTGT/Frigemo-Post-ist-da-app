@@ -82,9 +82,42 @@ nouveau build, pas une modification du code.
   (`MAIL_URGENT_CC`).
 - **Échec d'envoi** : dialogue explicite avec bouton « Réessayer ».
 
+## Publication de l'APK
+
+Le workflow `.github/workflows/release-apk.yml` construit l'APK et l'attache à
+une release. Il démarre sur un tag `v*` ou manuellement (« Run workflow »).
+
+Avant le premier build, renseigner sous **Settings → Secrets and variables →
+Actions** :
+
+| Type | Nom | Contenu |
+|---|---|---|
+| Variable | `API_BASE_URL` | p. ex. `http://10.20.30.40:3000/api` |
+| Variable | `TERMINAL_ID` | p. ex. `cressier-reception-1` |
+| Variable | `DEFAULT_LANGUAGE` | `fr` (facultatif) |
+| Secret | `TERMINAL_API_KEY` | même valeur que `TERMINAL_API_KEY` du serveur |
+
+Sans ces valeurs le workflow s'arrête tout de suite avec un message explicite,
+plutôt que de produire un APK pointant sur `localhost`.
+
+### Signature
+
+Le dossier `app/android/` n'est pas versionné : il est régénéré à chaque build.
+Sans keystore, l'APK est signé avec la clé de debug — installable, mais un
+passage ultérieur à une clé propre imposera une réinstallation sur la tablette.
+
+Pour signer avec une clé de production, ajouter les secrets `KEYSTORE_BASE64`
+(le fichier `.keystore` encodé en base64), `KEYSTORE_PASSWORD`, `KEY_ALIAS` et
+`KEY_PASSWORD`. Le workflow injecte alors la configuration dans le Gradle
+généré (`.github/scripts/inject_signing.py`) et vérifie ensuite que l'APK n'est
+pas signé avec la clé de debug ; les mots de passe passent par des variables
+d'environnement et ne sont écrits dans aucun fichier.
+
 ## Points ouverts
 
 - Numéros de téléphone dans `app/lib/config.dart` : ce sont des exemples.
+- Aucun test automatisé pour l'instant, ni côté serveur ni côté terminal ;
+  le workflow ne lance que `flutter analyze`.
 - Le SMTP de frigemo doit autoriser l'IP du serveur en relais interne, ou
   utiliser un compte Microsoft 365 dédié (dans ce cas `SMTP_SECURE=true`, port 587).
 - Prévoir un service systemd et une sauvegarde de `server/data/deliveries.db`.

@@ -34,6 +34,24 @@ jobs:
             echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
+      # Fehlende Repository-Variablen würden sonst still ein APK erzeugen, das
+      # auf localhost zeigt – auf dem Tablet unbrauchbar, aber erst dort sichtbar.
+      - name: Konfiguration prüfen
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          TERMINAL_ID: ${{ vars.TERMINAL_ID }}
+          TERMINAL_API_KEY: ${{ secrets.TERMINAL_API_KEY }}
+        run: |
+          missing=""
+          [ -n "$API_BASE_URL" ]    || missing="$missing vars.API_BASE_URL"
+          [ -n "$TERMINAL_ID" ]     || missing="$missing vars.TERMINAL_ID"
+          [ -n "$TERMINAL_API_KEY" ] || missing="$missing secrets.TERMINAL_API_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Fehlende Konfiguration:$missing – unter Settings → Secrets and variables → Actions eintragen."
+            exit 1
+          fi
+          echo "Server: $API_BASE_URL / Terminal: $TERMINAL_ID"
+
       - name: Java einrichten
         uses: actions/setup-java@v4
         with:
@@ -65,26 +83,59 @@ jobs:
       # Optional: eigener Signaturschlüssel. Ohne die Secrets baut Flutter mit
       # dem Debug-Key – installierbar, aber ein späterer Wechsel auf einen
       # eigenen Key erzwingt eine Neuinstallation auf dem Tablet.
+      #
+      # Der Schritt trägt die Signatur ins generierte Gradle-Skript ein; ohne
+      # das bliebe der Schlüssel wirkungslos, weil `flutter create` immer mit
+      # dem Debug-Key signiert.
       - name: Signaturschlüssel einrichten
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
-        working-directory: app/android
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > frigemo.keystore
-          cat > key.properties <<EOF
-          storeFile=frigemo.keystore
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          EOF
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::notice::Kein KEYSTORE_BASE64 hinterlegt – das APK wird mit dem Debug-Schlüssel signiert."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/frigemo.keystore"
+          python3 .github/scripts/inject_signing.py app/android
+          echo "signed=true" >> "$GITHUB_OUTPUT"
 
       - name: APK bauen
         working-directory: app
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          TERMINAL_ID: ${{ vars.TERMINAL_ID }}
+          TERMINAL_API_KEY: ${{ secrets.TERMINAL_API_KEY }}
+          DEFAULT_LANGUAGE: ${{ vars.DEFAULT_LANGUAGE || 'fr' }}
+          FRIGEMO_KEYSTORE: ${{ runner.temp }}/frigemo.keystore
+          FRIGEMO_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          FRIGEMO_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          FRIGEMO_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           flutter build apk --release \
-            --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }} \
-            --dart-define=API_KEY=${{ secrets.TERMINAL_API_KEY }} \
-            --dart-define=TERMINAL_ID=${{ vars.TERMINAL_ID }} \
-            --dart-define=DEFAULT_LANGUAGE=${{ vars.DEFAULT_LANGUAGE || 'fr' }}
+            --dart-define=API_BASE_URL="$API_BASE_URL" \
+            --dart-define=API_KEY="$TERMINAL_API_KEY" \
+            --dart-define=TERMINAL_ID="$TERMINAL_ID" \
+            --dart-define=DEFAULT_LANGUAGE="$DEFAULT_LANGUAGE"
+
+      # Ein unbemerkt debug-signiertes Release wäre der teure Fehler: die
+      # Neuinstallation auf dem Tablet fällt erst beim nächsten Update auf.
+      - name: Signatur prüfen
+        if: steps.signing.outputs.signed == 'true'
+        run: |
+          apk=app/build/app/outputs/flutter-apk/app-release.apk
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f 2>/dev/null | sort | tail -1)
+          if [ -z "$apksigner" ]; then
+            echo "::warning::apksigner nicht gefunden – Signatur konnte nicht geprüft werden."
+            exit 0
+          fi
+          certs=$("$apksigner" verify --print-certs "$apk")
+          echo "$certs"
+          if echo "$certs" | grep -q 'CN=Android Debug'; then
+            echo "::error::APK wurde trotz hinterlegtem Keystore mit dem Debug-Schlüssel signiert."
+            exit 1
+          fi
 
       - name: APK umbenennen
         run: |
@@ -102,6 +153,7 @@ jobs:
 
             **Serveur configuré :** `${{ vars.API_BASE_URL }}`
             **Terminal :** `${{ vars.TERMINAL_ID }}`
+            **Signature :** ${{ steps.signing.outputs.signed == 'true' && 'clé de production' || 'clé de debug — une future version signée exigera une réinstallation' }}
 
             Installation : télécharger l'APK sur la tablette, autoriser
             l'installation depuis cette source, puis activer l'épinglage
