@@ -34,7 +34,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   bool _searchFailed = false;
   bool _submitting = false;
   bool _success = false;
-  bool _online = true;
 
   /// Auf der Sendung steht kein Name. Bewusst gewaehlt, nicht bloss "noch
   /// nichts ausgewaehlt" -- sonst ginge eine Meldung schon durch, weil
@@ -44,7 +43,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   Timer? _debounce;
   Timer? _idle;
   Timer? _successTimer;
-  Timer? _healthTimer;
 
   L10n get _l => L10n(widget.locale.value);
   bool get _ready =>
@@ -56,8 +54,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   void initState() {
     super.initState();
     _searchCtrl.addListener(_onSearchChanged);
-    _checkHealth();
-    _healthTimer = Timer.periodic(AppConfig.healthInterval, (_) => _checkHealth());
   }
 
   @override
@@ -65,20 +61,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     _debounce?.cancel();
     _idle?.cancel();
     _successTimer?.cancel();
-    _healthTimer?.cancel();
     _searchCtrl.dispose();
     _noteCtrl.dispose();
     _searchFocus.dispose();
     _api.dispose();
     super.dispose();
-  }
-
-  // --- Server-Status ---------------------------------------------------
-
-  Future<void> _checkHealth() async {
-    final ok = await _api.health();
-    if (!mounted || ok == _online) return;
-    setState(() => _online = ok);
   }
 
   // --- Leerlauf: Formular zurücksetzen, wenn niemand mehr davorsteht ----
@@ -132,17 +119,13 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         _results = found;
         _searching = false;
         _searchFailed = false;
-        _online = true;
       });
-    } on ApiException catch (e) {
+    } on ApiException {
       if (!mounted) return;
       setState(() {
         _results = const [];
         _searching = false;
         _searchFailed = true;
-        if (e.kind == ApiErrorKind.network || e.kind == ApiErrorKind.timeout) {
-          _online = false;
-        }
       });
     }
   }
@@ -197,7 +180,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       setState(() {
         _submitting = false;
         _success = true;
-        _online = true;
       });
       _successTimer?.cancel();
       _successTimer = Timer(AppConfig.successDuration, () {
@@ -205,20 +187,12 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       });
     } on ApiException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _submitting = false;
-        if (e.kind == ApiErrorKind.network || e.kind == ApiErrorKind.timeout) {
-          _online = false;
-        }
-      });
+      setState(() => _submitting = false);
       _showError(e);
     }
   }
 
   void _showError(ApiException error) {
-    final retryable = error.kind != ApiErrorKind.mailFailed &&
-        error.kind != ApiErrorKind.unauthorized;
-
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -243,24 +217,20 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              if (error.kind == ApiErrorKind.mailFailed) _reset();
-            },
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text(_l.t('close'), style: const TextStyle(fontSize: 18)),
           ),
-          if (retryable)
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              ),
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                _submit();
-              },
-              child: Text(_l.t('retry'), style: const TextStyle(fontSize: 18)),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             ),
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _submit();
+            },
+            child: Text(_l.t('retry'), style: const TextStyle(fontSize: 18)),
+          ),
         ],
       ),
     );
@@ -428,31 +398,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           ),
         ),
       ],
-      bottom: _online
-          ? null
-          : PreferredSize(
-              preferredSize: const Size.fromHeight(44),
-              child: Container(
-                width: double.infinity,
-                color: AppColors.alert,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.wifi_off, color: Colors.white, size: 20),
-                    const SizedBox(width: 10),
-                    Text(
-                      _l.t('offline'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
     );
   }
 
@@ -657,6 +602,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         const SizedBox(height: 10),
         _searchFeedback(),
         const SizedBox(height: 4),
+        if (AppConfig.hasSharedMailbox)
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
@@ -745,7 +691,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     if (_searchFailed) {
       return _hintRow(
         Icons.cloud_off,
-        _l.t(_online ? 'error.server' : 'error.network'),
+        _l.t('error.list'),
         AppColors.danger,
         action: TextButton(
           onPressed: () => _runSearch(query),

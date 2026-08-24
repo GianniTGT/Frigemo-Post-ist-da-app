@@ -56,7 +56,8 @@ class DeliveryDraft {
   });
 }
 
-enum ApiErrorKind { network, timeout, unauthorized, server, mailFailed }
+/// Ohne Server bleiben genau zwei Dinge, die schiefgehen koennen.
+enum ApiErrorKind { listUnavailable, mailFailed }
 
 class ApiException implements Exception {
   final ApiErrorKind kind;
@@ -66,11 +67,8 @@ class ApiException implements Exception {
 
   /// Übersetzungsschlüssel für die Anzeige.
   String get messageKey => switch (kind) {
-        ApiErrorKind.network => 'error.network',
-        ApiErrorKind.timeout => 'error.timeout',
-        ApiErrorKind.unauthorized => 'error.auth',
+        ApiErrorKind.listUnavailable => 'error.list',
         ApiErrorKind.mailFailed => 'error.mail',
-        ApiErrorKind.server => 'error.server',
       };
 
   @override
@@ -204,11 +202,11 @@ String formatStamp(DateTime when) =>
 /// Baut die mailto-Adresse, die das Terminal an die E-Mail-App uebergibt.
 /// Mit Empfaenger geht die Meldung an die Person, das gemeinsame Postfach
 /// steht in Kopie; ohne Empfaenger geht sie nur an das gemeinsame Postfach.
-Uri composeMail(DeliveryDraft draft, {DateTime? now}) {
+Uri composeMail(DeliveryDraft draft, {DateTime? now, String? sharedMailbox}) {
   final recipient = draft.recipient;
   final l = L10n(recipient?.lang ?? draft.terminalLang);
   final urgent = draft.kind == 'chilled';
-  final shared = AppConfig.mailFallback.trim();
+  final shared = (sharedMailbox ?? AppConfig.mailFallback).trim();
 
   final to = <String>[];
   final cc = <String>[];
@@ -258,9 +256,6 @@ Uri composeMail(DeliveryDraft draft, {DateTime? now}) {
 class ApiService {
   List<Employee>? _staff;
 
-  /// Ohne Server gibt es nichts, was ausfallen koennte.
-  Future<bool> health() async => true;
-
   Future<List<Employee>> staff() async {
     final cached = _staff;
     if (cached != null) return cached;
@@ -272,7 +267,7 @@ class ApiService {
     } catch (e) {
       // Fehlt oder zerbricht die Liste, muss der Empfang das sehen -- sonst
       // sieht es aus, als gaebe es die gesuchte Person nicht.
-      throw ApiException(ApiErrorKind.server, e.toString());
+      throw ApiException(ApiErrorKind.listUnavailable, e.toString());
     }
   }
 

@@ -9,18 +9,6 @@
 library;
 
 class AppConfig {
-  static const String apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:3000/api',
-  );
-
-  static const String apiKey = String.fromEnvironment('API_KEY');
-
-  static const String terminalId = String.fromEnvironment(
-    'TERMINAL_ID',
-    defaultValue: 'terminal-dev',
-  );
-
   /// 'fr' oder 'de' – Standardsprache des Terminals.
   static const String defaultLanguage = String.fromEnvironment(
     'DEFAULT_LANGUAGE',
@@ -32,18 +20,18 @@ class AppConfig {
   /// gesetzt; ein Terminal im Betrieb laeuft nie damit.
   static const bool demoMode = bool.fromEnvironment('DEMO_MODE');
 
-  /// Gemeinsames Postfach, das jede Meldung mitbekommt – bei einer Sendung
-  /// ohne Namen ist es der einzige Empfaenger. Ueber --dart-define
-  /// aenderbar, ohne den Code anzufassen.
-  static const String mailFallback = String.fromEnvironment(
-    'MAIL_FALLBACK',
-    defaultValue: 'paketistda@frigemo.ch',
-  );
+  /// Gemeinsames Postfach, das jede Meldung in Kopie mitbekommt – bei einer
+  /// Sendung ohne Namen ist es der einzige Empfaenger.
+  ///
+  /// Standard ist leer, weil es diese Adresse noch nicht gibt: ohne Angabe
+  /// geht keine Meldung an ein totes Postfach, und "Empfaenger unbekannt"
+  /// bleibt ausgeblendet. Setzen ueber --dart-define=MAIL_FALLBACK=…
+  static const String mailFallback = String.fromEnvironment('MAIL_FALLBACK');
+
+  static bool get hasSharedMailbox => mailFallback.trim().isNotEmpty;
 
   /// Mehr als zehn Sendungen auf einmal meldet der Empfang nicht.
   static const int maxQuantity = 10;
-
-  static const Duration requestTimeout = Duration(seconds: 10);
 
   /// Formular zurücksetzen, wenn niemand mehr am Terminal steht.
   static const Duration idleTimeout = Duration(seconds: 90);
@@ -60,7 +48,6 @@ class AppConfig {
 
   static const int maxSearchResults = 8;
 
-  static const Duration healthInterval = Duration(seconds: 30);
 }
 
 /// Kurierdienste. Farben sind die Markenfarben, damit der Empfang die

@@ -61,25 +61,6 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      # Fehlende Repository-Variablen würden sonst still ein APK erzeugen, das
-      # auf localhost zeigt – auf dem Tablet unbrauchbar, aber erst dort sichtbar.
-      - name: Konfiguration prüfen
-        if: github.event_name != 'pull_request' && steps.version.outputs.demo != 'true'
-        env:
-          API_BASE_URL: ${{ vars.API_BASE_URL }}
-          TERMINAL_ID: ${{ vars.TERMINAL_ID }}
-          TERMINAL_API_KEY: ${{ secrets.TERMINAL_API_KEY }}
-        run: |
-          missing=""
-          [ -n "$API_BASE_URL" ]    || missing="$missing vars.API_BASE_URL"
-          [ -n "$TERMINAL_ID" ]     || missing="$missing vars.TERMINAL_ID"
-          [ -n "$TERMINAL_API_KEY" ] || missing="$missing secrets.TERMINAL_API_KEY"
-          if [ -n "$missing" ]; then
-            echo "::error::Fehlende Konfiguration:$missing – unter Settings → Secrets and variables → Actions eintragen."
-            exit 1
-          fi
-          echo "Server: $API_BASE_URL / Terminal: $TERMINAL_ID"
-
       - name: Java einrichten
         uses: actions/setup-java@v4
         with:
@@ -158,22 +139,28 @@ jobs:
         if: github.event_name != 'pull_request'
         working-directory: app
         env:
-          API_BASE_URL: ${{ vars.API_BASE_URL }}
-          TERMINAL_ID: ${{ vars.TERMINAL_ID }}
-          TERMINAL_API_KEY: ${{ secrets.TERMINAL_API_KEY }}
           DEFAULT_LANGUAGE: ${{ vars.DEFAULT_LANGUAGE || 'fr' }}
           DEMO_MODE: ${{ steps.version.outputs.demo }}
+          MAIL_FALLBACK: ${{ vars.MAIL_FALLBACK }}
           FRIGEMO_KEYSTORE: ${{ runner.temp }}/frigemo.keystore
           FRIGEMO_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           FRIGEMO_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           FRIGEMO_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          # Ohne gesetztes MAIL_FALLBACK bleibt der Standard aus config.dart
+          # (leer) gueltig -- ein leeres --dart-define wuerde ihn ueberschreiben.
+          extra=()
+          if [ -n "$MAIL_FALLBACK" ]; then
+            extra+=(--dart-define=MAIL_FALLBACK="$MAIL_FALLBACK")
+            echo "Gemeinsames Postfach: $MAIL_FALLBACK"
+          else
+            echo "::notice::Kein vars.MAIL_FALLBACK gesetzt – Meldungen gehen nur an die Person, und \"Empfänger unbekannt\" bleibt ausgeblendet."
+          fi
+
           flutter build apk --release \
-            --dart-define=API_BASE_URL="$API_BASE_URL" \
-            --dart-define=API_KEY="$TERMINAL_API_KEY" \
-            --dart-define=TERMINAL_ID="$TERMINAL_ID" \
             --dart-define=DEFAULT_LANGUAGE="$DEFAULT_LANGUAGE" \
-            --dart-define=DEMO_MODE="$DEMO_MODE"
+            --dart-define=DEMO_MODE="$DEMO_MODE" \
+            "${extra[@]}"
 
       # Ein unbemerkt debug-signiertes Release wäre der teure Fehler: die
       # Neuinstallation auf dem Tablet fällt erst beim nächsten Update auf.
@@ -218,8 +205,7 @@ jobs:
 
             ${{ steps.version.outputs.demo == 'true' && '**APK DE DÉMONSTRATION** — liste du personnel fictive intégrée, aucun e-mail n''est envoyé, aucun serveur nécessaire. Ne pas utiliser à la réception.' || '' }}
 
-            **Serveur configuré :** `${{ vars.API_BASE_URL }}`
-            **Terminal :** `${{ vars.TERMINAL_ID }}`
+            **Boîte commune :** `${{ vars.MAIL_FALLBACK || 'aucune — annonce uniquement au destinataire' }}`
             **Signature :** ${{ steps.signing.outputs.signed == 'true' && 'clé de production' || 'clé de debug — une future version signée exigera une réinstallation' }}
 
             Installation : télécharger l'APK sur la tablette, autoriser

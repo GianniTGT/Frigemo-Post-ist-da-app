@@ -102,6 +102,7 @@ void main() {
   });
 
   group('mailto', () {
+    const shared = 'paket@frigemo.ch';
     const person = Employee(
       id: '1',
       name: 'Hans Muster',
@@ -111,43 +112,69 @@ void main() {
     );
 
     test('schickt an die Person, gemeinsames Postfach in Kopie', () {
-      final uri = composeMail(_draft(recipient: person));
+      final uri = composeMail(_draft(recipient: person), sharedMailbox: shared);
       expect(uri.scheme, 'mailto');
       expect(uri.path, 'h.muster@frigemo.ch');
-      expect(uri.queryParameters['cc'], AppConfig.mailFallback);
+      expect(uri.queryParameters['cc'], shared);
     });
 
     test('ohne Namen geht die Meldung nur ans gemeinsame Postfach', () {
-      final uri = composeMail(_draft());
-      expect(uri.path, AppConfig.mailFallback);
+      final uri = composeMail(_draft(), sharedMailbox: shared);
+      expect(uri.path, shared);
       expect(uri.queryParameters['cc'], isNull);
       expect(uri.queryParameters['body'], contains(fr.t('recipient.unknown')));
     });
 
+    // Das gemeinsame Postfach gibt es noch nicht. Ohne Angabe darf keine
+    // Meldung an eine tote Adresse gehen -- lieber gar keine Kopie.
+    test('ohne gemeinsames Postfach bleibt die Kopie weg', () {
+      final uri = composeMail(_draft(recipient: person), sharedMailbox: '');
+      expect(uri.path, 'h.muster@frigemo.ch');
+      expect(uri.queryParameters['cc'], isNull);
+    });
+
+    test('ohne Postfach und ohne Namen gibt es keine Adresse', () {
+      expect(
+        () => composeMail(_draft(), sharedMailbox: ''),
+        throwsA(isA<ApiException>()),
+      );
+    });
+
+    test('der Standardbuild hat noch kein gemeinsames Postfach', () {
+      expect(AppConfig.hasSharedMailbox, isFalse);
+    });
+
     test('folgt der Sprache der Person, nicht der des Terminals', () {
       // Terminal auf Franzoesisch, Empfaenger deutschsprachig.
-      final uri = composeMail(_draft(recipient: person));
+      final uri = composeMail(_draft(recipient: person), sharedMailbox: shared);
       expect(uri.queryParameters['subject'], contains('Lieferung für Sie'));
       expect(uri.queryParameters['body'], contains(de.t('mail.footer')));
     });
 
     test('markiert Kuehlware als dringend', () {
-      final normal = composeMail(_draft(recipient: person));
-      final chilled = composeMail(_draft(recipient: person, kind: 'chilled'));
+      final normal = composeMail(_draft(recipient: person), sharedMailbox: shared);
+      final chilled = composeMail(
+        _draft(recipient: person, kind: 'chilled'),
+        sharedMailbox: shared,
+      );
       expect(normal.queryParameters['subject'], isNot(startsWith('[')));
       expect(chilled.queryParameters['subject'], startsWith('[DRINGEND]'));
       expect(chilled.queryParameters['body'], contains(de.t('mail.urgentNote')));
     });
 
     test('nimmt Menge und Bemerkung mit', () {
-      final uri = composeMail(_draft(recipient: person, quantity: 4, note: 'Palette beschädigt'));
+      final uri = composeMail(
+        _draft(recipient: person, quantity: 4, note: 'Palette beschädigt'),
+        sharedMailbox: shared,
+      );
       final body = uri.queryParameters['body']!;
       expect(body, contains('${de.t('quantity')}: 4'));
       expect(body, contains('Palette beschädigt'));
     });
 
     test('laesst die Bemerkungszeile weg, wenn nichts drinsteht', () {
-      final body = composeMail(_draft(recipient: person)).queryParameters['body']!;
+      final body = composeMail(_draft(recipient: person), sharedMailbox: shared)
+          .queryParameters['body']!;
       expect(body, isNot(contains(de.t('mail.note'))));
     });
   });
@@ -204,14 +231,10 @@ void main() {
         'success.body',
         'success.next',
         'error.title',
-        'error.network',
-        'error.timeout',
-        'error.server',
-        'error.auth',
+        'error.list',
         'error.mail',
         'retry',
         'close',
-        'offline',
         'phone.title',
         'phone.button',
         'recipient.unknown',

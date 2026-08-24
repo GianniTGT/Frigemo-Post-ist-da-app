@@ -105,21 +105,9 @@ class L10n {
       AppLang.fr: 'Envoi impossible',
       AppLang.de: 'Senden nicht möglich',
     },
-    'error.network': {
-      AppLang.fr: 'Le terminal n\u2019atteint pas le serveur. Vérifier le câble réseau, puis réessayer.',
-      AppLang.de: 'Das Terminal erreicht den Server nicht. Netzwerkkabel prüfen, dann nochmals versuchen.',
-    },
-    'error.timeout': {
-      AppLang.fr: 'Le serveur ne répond pas. Réessayer dans un moment.',
-      AppLang.de: 'Der Server antwortet nicht. In einem Moment nochmals versuchen.',
-    },
-    'error.server': {
-      AppLang.fr: 'Le serveur a refusé l\u2019envoi. Prévenir l\u2019informatique.',
-      AppLang.de: 'Der Server hat die Sendung abgelehnt. IT informieren.',
-    },
-    'error.auth': {
-      AppLang.fr: 'Ce terminal n\u2019est pas autorisé. Prévenir l\u2019informatique.',
-      AppLang.de: 'Dieses Terminal ist nicht autorisiert. IT informieren.',
+    'error.list': {
+      AppLang.fr: 'La liste du personnel n\u2019a pas pu être lue. Prévenir l\u2019informatique.',
+      AppLang.de: 'Die Personalliste liess sich nicht lesen. IT informieren.',
     },
     'error.mail': {
       AppLang.fr: 'Impossible d\u2019ouvrir l\u2019application e-mail. Prévenir le destinataire par téléphone.',
@@ -127,10 +115,6 @@ class L10n {
     },
     'retry': {AppLang.fr: 'Réessayer', AppLang.de: 'Nochmals versuchen'},
     'close': {AppLang.fr: 'Fermer', AppLang.de: 'Schliessen'},
-    'offline': {
-      AppLang.fr: 'Serveur injoignable – annoncer par téléphone',
-      AppLang.de: 'Server nicht erreichbar – telefonisch melden',
-    },
     'phone.title': {
       AppLang.fr: 'Contacts téléphoniques',
       AppLang.de: 'Telefonkontakte',

@@ -52,8 +52,14 @@ personne, indépendamment de la langue du terminal.
 
 ### Boîte commune
 
-Par défaut `paketistda@frigemo.ch`, remplaçable au build sans modifier le
-code : `--dart-define=MAIL_FALLBACK=…`.
+Cette adresse reçoit chaque annonce en copie, et devient le seul destinataire
+quand aucun nom ne figure sur le colis.
+
+**Par défaut il n'y en a aucune**, parce que `paketistda@frigemo.ch` n'existe
+pas encore : sans adresse, rien ne part vers une boîte morte, et l'option
+« Destinataire inconnu » reste masquée. Pour l'activer, définir la variable
+`MAIL_FALLBACK` sous Settings → Secrets and variables → Actions, puis
+reconstruire.
 
 ## Serveur (plus utilisé)
 
@@ -135,18 +141,17 @@ tablette. Avant de publier une release au sens propre, il faut soit passer le
 dépôt en privé, soit sortir la clé du build (saisie sur le terminal au premier
 démarrage, par exemple).
 
-Avant le premier build, renseigner sous **Settings → Secrets and variables →
-Actions** :
+Le build ne demande aucune configuration obligatoire. Deux variables
+facultatives, sous **Settings → Secrets and variables → Actions** :
 
 | Type | Nom | Contenu |
 |---|---|---|
-| Variable | `API_BASE_URL` | p. ex. `http://10.20.30.40:3000/api` |
-| Variable | `TERMINAL_ID` | p. ex. `cressier-reception-1` |
-| Variable | `DEFAULT_LANGUAGE` | `fr` (facultatif) |
-| Secret | `TERMINAL_API_KEY` | même valeur que `TERMINAL_API_KEY` du serveur |
+| Variable | `MAIL_FALLBACK` | boîte commune, p. ex. `paketistda@frigemo.ch` |
+| Variable | `DEFAULT_LANGUAGE` | `fr` (défaut) ou `de` |
 
-Sans ces valeurs le workflow s'arrête tout de suite avec un message explicite,
-plutôt que de produire un APK pointant sur `localhost`.
+Les anciennes variables `API_BASE_URL`, `TERMINAL_ID` et le secret
+`TERMINAL_API_KEY` ne servent plus depuis la suppression du serveur et peuvent
+être effacées.
 
 ### Contrôle sur les pull requests
 
