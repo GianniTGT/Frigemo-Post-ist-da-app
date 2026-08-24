@@ -87,6 +87,14 @@ nouveau build, pas une modification du code.
 Le workflow `.github/workflows/release-apk.yml` construit l'APK et l'attache à
 une release. Il démarre sur un tag `v*` ou manuellement (« Run workflow »).
 
+La release est créée **en brouillon** : le dépôt est public, alors que l'APK
+contient `TERMINAL_API_KEY` — les valeurs `--dart-define` sont compilées dans
+le binaire et s'en extraient. Un brouillon n'est visible et téléchargeable que
+par les personnes ayant accès au dépôt, ce qui suffit pour installer sur la
+tablette. Avant de publier une release au sens propre, il faut soit passer le
+dépôt en privé, soit sortir la clé du build (saisie sur le terminal au premier
+démarrage, par exemple).
+
 Avant le premier build, renseigner sous **Settings → Secrets and variables →
 Actions** :
 

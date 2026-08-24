@@ -185,10 +185,17 @@ jobs:
              frigemo-post-terminal-${{ steps.version.outputs.tag }}.apk
           ls -lh frigemo-post-terminal-*.apk
 
-      - name: Release anlegen und APK anhängen
+      # Das Repository ist oeffentlich, das APK enthaelt aber den
+      # TERMINAL_API_KEY: --dart-define-Werte werden einkompiliert und lassen
+      # sich aus der Datei auslesen. Die Release bleibt deshalb ein Entwurf --
+      # sichtbar und herunterladbar nur fuer Berechtigte des Repositories.
+      # Erst "Publish release" von Hand macht sie oeffentlich; vorher sollte
+      # der Schluessel nicht mehr im Build stecken.
+      - name: Release als Entwurf anlegen und APK anhängen
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
+          draft: true
           tag_name: ${{ steps.version.outputs.tag }}
           name: Terminal Réception ${{ steps.version.outputs.tag }}
           body: |
@@ -201,4 +208,8 @@ jobs:
             Installation : télécharger l'APK sur la tablette, autoriser
             l'installation depuis cette source, puis activer l'épinglage
             d'écran (Paramètres → Sécurité → Épinglage d'écran).
+
+            ⚠️ Brouillon volontaire : l'APK contient la clé `TERMINAL_API_KEY`,
+            extractible du fichier. Ne pas publier cette release tant que le
+            dépôt est public.
           files: frigemo-post-terminal-${{ steps.version.outputs.tag }}.apk
