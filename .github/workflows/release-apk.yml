@@ -26,6 +26,10 @@ on:
         description: 'Version, z. B. v1.0.0'
         required: true
         default: 'v1.0.0'
+      demo:
+        description: 'Demo-APK ohne Server (Liste im Geraet, Versand simuliert)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write   # nötig, damit der Job ein Release anlegen darf
@@ -43,15 +47,22 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            tag="${{ inputs.version }}"
           else
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            tag="${GITHUB_REF_NAME}"
           fi
+          if [ "${{ inputs.demo }}" = "true" ]; then
+            tag="${tag}-demo"
+            echo "demo=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "demo=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       # Fehlende Repository-Variablen würden sonst still ein APK erzeugen, das
       # auf localhost zeigt – auf dem Tablet unbrauchbar, aber erst dort sichtbar.
       - name: Konfiguration prüfen
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.version.outputs.demo != 'true'
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           TERMINAL_ID: ${{ vars.TERMINAL_ID }}
@@ -149,6 +160,7 @@ jobs:
           TERMINAL_ID: ${{ vars.TERMINAL_ID }}
           TERMINAL_API_KEY: ${{ secrets.TERMINAL_API_KEY }}
           DEFAULT_LANGUAGE: ${{ vars.DEFAULT_LANGUAGE || 'fr' }}
+          DEMO_MODE: ${{ steps.version.outputs.demo }}
           FRIGEMO_KEYSTORE: ${{ runner.temp }}/frigemo.keystore
           FRIGEMO_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           FRIGEMO_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -158,7 +170,8 @@ jobs:
             --dart-define=API_BASE_URL="$API_BASE_URL" \
             --dart-define=API_KEY="$TERMINAL_API_KEY" \
             --dart-define=TERMINAL_ID="$TERMINAL_ID" \
-            --dart-define=DEFAULT_LANGUAGE="$DEFAULT_LANGUAGE"
+            --dart-define=DEFAULT_LANGUAGE="$DEFAULT_LANGUAGE" \
+            --dart-define=DEMO_MODE="$DEMO_MODE"
 
       # Ein unbemerkt debug-signiertes Release wäre der teure Fehler: die
       # Neuinstallation auf dem Tablet fällt erst beim nächsten Update auf.
@@ -200,6 +213,8 @@ jobs:
           name: Terminal Réception ${{ steps.version.outputs.tag }}
           body: |
             Terminal de réception Frigemo Cressier.
+
+            ${{ steps.version.outputs.demo == 'true' && '**APK DE DÉMONSTRATION** — liste du personnel fictive intégrée, aucun e-mail n''est envoyé, aucun serveur nécessaire. Ne pas utiliser à la réception.' || '' }}
 
             **Serveur configuré :** `${{ vars.API_BASE_URL }}`
             **Terminal :** `${{ vars.TERMINAL_ID }}`

@@ -56,7 +56,14 @@ class PostTerminalApp extends StatelessWidget {
                   displayColor: AppColors.ink,
                 ),
           ),
-          home: DeliveryScreen(locale: locale),
+          home: AppConfig.demoMode
+              ? Banner(
+                  message: 'DEMO',
+                  location: BannerLocation.topStart,
+                  color: AppColors.alert,
+                  child: DeliveryScreen(locale: locale),
+                )
+              : DeliveryScreen(locale: locale),
         );
       },
     );

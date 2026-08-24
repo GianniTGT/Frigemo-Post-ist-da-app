@@ -27,6 +27,11 @@ class AppConfig {
     defaultValue: 'fr',
   );
 
+  /// Demomodus zum Ausprobieren ohne Server: Personalsuche und Versand
+  /// werden im Gerät simuliert. Wird nur über --dart-define=DEMO_MODE=true
+  /// gesetzt; ein Terminal im Betrieb laeuft nie damit.
+  static const bool demoMode = bool.fromEnvironment('DEMO_MODE');
+
   static const Duration requestTimeout = Duration(seconds: 10);
 
   /// Formular zurücksetzen, wenn niemand mehr am Terminal steht.
