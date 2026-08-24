@@ -21,7 +21,47 @@ Frigemo-Post-ist-da-app/
     └── src/mailer.js           modèles FR/DE, SMTP
 ```
 
-## Serveur
+## Comment l'envoi fonctionne
+
+Le terminal n'a **pas de serveur**. La liste du personnel est un fichier dans
+l'application, et l'envoi passe par l'application e-mail de la tablette :
+
+1. la réception choisit le transporteur, le nombre et le destinataire ;
+2. « Envoyer » ouvre l'application e-mail avec le message déjà rempli —
+   destinataire, boîte commune en copie, objet et texte ;
+3. la réception appuie sur Envoyer dans l'application e-mail.
+
+Aucun mot de passe n'est stocké dans l'application, et aucune infrastructure
+n'est nécessaire. En contrepartie, une boîte e-mail doit être configurée sur
+la tablette, et le terminal ne peut pas savoir si le message est vraiment
+parti — il montre seulement qu'il a été préparé.
+
+Quand aucun nom ne figure sur le colis, « Destinataire inconnu » envoie
+l'annonce uniquement à la boîte commune.
+
+### Liste du personnel
+
+`app/assets/employees.csv` — colonnes `name,email,department,lang`. Modifiable
+directement sur github.com, sans toucher au code ; il faut ensuite reconstruire
+l'APK pour que la tablette voie le changement.
+
+**Les noms livrés sont des exemples et doivent être remplacés.**
+
+La colonne `lang` (`fr` ou `de`) décide de la langue de l'e-mail pour cette
+personne, indépendamment de la langue du terminal.
+
+### Boîte commune
+
+Par défaut `paketistda@frigemo.ch`, remplaçable au build sans modifier le
+code : `--dart-define=MAIL_FALLBACK=…`.
+
+## Serveur (plus utilisé)
+
+Le dossier `server/` vient de la première version, où la recherche et l'envoi
+passaient par une API. Il n'est plus utilisé par le terminal et reste là au cas
+où l'envoi automatique redeviendrait souhaitable.
+
+
 
 ```bash
 cd server

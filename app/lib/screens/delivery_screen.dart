@@ -36,13 +36,21 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   bool _success = false;
   bool _online = true;
 
+  /// Auf der Sendung steht kein Name. Bewusst gewaehlt, nicht bloss "noch
+  /// nichts ausgewaehlt" -- sonst ginge eine Meldung schon durch, weil
+  /// jemand die Suche vergessen hat.
+  bool _unknownRecipient = false;
+
   Timer? _debounce;
   Timer? _idle;
   Timer? _successTimer;
   Timer? _healthTimer;
 
   L10n get _l => L10n(widget.locale.value);
-  bool get _ready => _carrier != null && _recipient != null && !_submitting;
+  bool get _ready =>
+      _carrier != null &&
+      (_recipient != null || _unknownRecipient) &&
+      !_submitting;
 
   @override
   void initState() {
@@ -77,7 +85,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
   void _touch() {
     _idle?.cancel();
-    if (_carrier == null && _recipient == null && _searchCtrl.text.isEmpty) {
+    if (_carrier == null &&
+        _recipient == null &&
+        !_unknownRecipient &&
+        _searchCtrl.text.isEmpty) {
       return;
     }
     _idle = Timer(AppConfig.idleTimeout, () {
@@ -89,7 +100,12 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
   void _onSearchChanged() {
     // Sobald wieder getippt wird, ist die alte Auswahl ungültig.
-    if (_recipient != null) setState(() => _recipient = null);
+    if (_recipient != null || _unknownRecipient) {
+      setState(() {
+        _recipient = null;
+        _unknownRecipient = false;
+      });
+    }
 
     _touch();
     _debounce?.cancel();
@@ -165,13 +181,14 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     _idle?.cancel();
 
     final draft = DeliveryDraft(
-      carrierId: _carrier!.id,
-      carrierLabel: _carrier!.id == 'other' ? _l.t('carrier.other') : _carrier!.label,
-      employeeId: _recipient!.id,
+      carrierLabel:
+          _carrier!.id == 'other' ? _l.t('carrier.other') : _carrier!.label,
+      recipient: _recipient,
       quantity: _quantity,
       kind: _kind,
       location: _location,
       note: _noteCtrl.text.trim(),
+      terminalLang: widget.locale.value,
     );
 
     try {
@@ -256,6 +273,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       _carrier = null;
       _recipient = null;
       _quantity = 1;
+      _unknownRecipient = false;
       _kind = kShipmentKinds.first;
       _location = kPickupLocations.first;
       _results = const [];
@@ -554,6 +572,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   Widget _recipientField() {
+    if (_unknownRecipient) return _unknownRecipientCard();
+
     if (_recipient != null) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -636,7 +656,86 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         ),
         const SizedBox(height: 10),
         _searchFeedback(),
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () {
+              _searchFocus.unfocus();
+              setState(() {
+                _unknownRecipient = true;
+                _recipient = null;
+                _results = const [];
+                _searching = false;
+                _searchFailed = false;
+                _searchCtrl.removeListener(_onSearchChanged);
+                _searchCtrl.clear();
+                _searchCtrl.addListener(_onSearchChanged);
+              });
+              _touch();
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.inkSoft),
+            icon: const Icon(Icons.help_outline, size: 22),
+            label: Text(
+              _l.t('recipient.unknown'),
+              style: const TextStyle(fontSize: 17),
+            ),
+          ),
+        ),
       ],
+    );
+  }
+
+  /// Auf mancher Sendung steht kein Name. Dann geht die Meldung nur an das
+  /// gemeinsame Postfach – der Zustand muss aber sichtbar sein, damit ihn
+  /// niemand aus Versehen stehen laesst.
+  Widget _unknownRecipientCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.alert, width: 2),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.help_outline, color: AppColors.alert, size: 30),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _l.t('recipient.unknown'),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _l.t('recipient.unknown.hint'),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: AppColors.inkSoft,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() => _unknownRecipient = false);
+              _searchFocus.requestFocus();
+              _touch();
+            },
+            child: Text(
+              _l.t('search.change'),
+              style: const TextStyle(fontSize: 18),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -823,7 +922,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
           ),
         ),
-        _roundButton(Icons.add, _quantity < 99, () {
+        _roundButton(Icons.add, _quantity < AppConfig.maxQuantity, () {
           setState(() => _quantity++);
           _touch();
         }),
@@ -949,7 +1048,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              _l.t('success.body', args: {'name': _recipient?.name ?? ''}),
+              _recipient != null
+                  ? _l.t('success.body', args: {'name': _recipient!.name})
+                  : _l.t('success.body.unknown'),
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 20, color: AppColors.inkSoft),
             ),

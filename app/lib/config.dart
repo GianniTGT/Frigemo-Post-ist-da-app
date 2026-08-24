@@ -32,6 +32,17 @@ class AppConfig {
   /// gesetzt; ein Terminal im Betrieb laeuft nie damit.
   static const bool demoMode = bool.fromEnvironment('DEMO_MODE');
 
+  /// Gemeinsames Postfach, das jede Meldung mitbekommt – bei einer Sendung
+  /// ohne Namen ist es der einzige Empfaenger. Ueber --dart-define
+  /// aenderbar, ohne den Code anzufassen.
+  static const String mailFallback = String.fromEnvironment(
+    'MAIL_FALLBACK',
+    defaultValue: 'paketistda@frigemo.ch',
+  );
+
+  /// Mehr als zehn Sendungen auf einmal meldet der Empfang nicht.
+  static const int maxQuantity = 10;
+
   static const Duration requestTimeout = Duration(seconds: 10);
 
   /// Formular zurücksetzen, wenn niemand mehr am Terminal steht.

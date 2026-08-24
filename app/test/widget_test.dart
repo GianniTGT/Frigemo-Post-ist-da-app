@@ -4,12 +4,37 @@
 // nicht gibt, die App-Klasse heisst PostTerminalApp. `flutter analyze` bricht
 // daran ab. Eine bereits vorhandene Datei laesst `flutter create` unberuehrt.
 //
-// Geprueft wird, was ohne Server und ohne Widget-Baum pruefbar ist: die
-// Sprachumschaltung und die Uebersetzungstabelle. Der Bildschirm selbst haengt
-// an HTTP-Aufrufen und laufenden Timern und braucht einen eigenen Testaufbau.
+// Geprueft wird alles, was ohne Widget-Baum und ohne E-Mail-App pruefbar ist:
+// Personalliste, Suche, Aufbau der mailto-Adresse und die Uebersetzungen.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:frigemo_post_terminal/api_service.dart';
+import 'package:frigemo_post_terminal/config.dart';
 import 'package:frigemo_post_terminal/l10n.dart';
+
+const _csv = '''
+name,email,department,lang
+Hans Muster,h.muster@frigemo.ch,Technik / Unterhalt,de
+Claire Dubois,c.dubois@frigemo.ch,Production,fr
+"Muller, Beat",b.muller@frigemo.ch,Logistique,de
+Ohne Adresse,,Production,fr
+''';
+
+DeliveryDraft _draft({
+  Employee? recipient,
+  String kind = 'parcel',
+  String note = '',
+  int quantity = 1,
+}) =>
+    DeliveryDraft(
+      carrierLabel: 'DHL',
+      recipient: recipient,
+      quantity: quantity,
+      kind: kind,
+      location: 'reception',
+      note: note,
+      terminalLang: AppLang.fr,
+    );
 
 void main() {
   const fr = L10n(AppLang.fr);
@@ -32,6 +57,98 @@ void main() {
       expect(controller.value, AppLang.de);
       controller.toggle();
       expect(controller.value, AppLang.fr);
+    });
+  });
+
+  group('Personalliste', () {
+    final staff = employeesFromCsv(_csv);
+
+    test('liest die gepflegte Datei', () {
+      // "Ohne Adresse" faellt raus: ohne E-Mail ist der Eintrag nutzlos.
+      expect(staff.length, 3);
+      expect(staff.first.name, 'Hans Muster');
+      expect(staff.first.email, 'h.muster@frigemo.ch');
+      expect(staff.first.lang, AppLang.de);
+      expect(staff[1].lang, AppLang.fr);
+    });
+
+    test('haelt ein Komma im Namen zusammen', () {
+      expect(staff[2].name, 'Muller, Beat');
+      expect(staff[2].department, 'Logistique');
+    });
+  });
+
+  group('Suche', () {
+    final staff = employeesFromCsv(_csv);
+
+    test('findet ueber Akzente hinweg', () {
+      expect(foldForSearch('Müller'), 'muller');
+      expect(foldForSearch('Perret Sophie'), 'perret sophie');
+      expect(searchIn(staff, 'muller').single.name, 'Muller, Beat');
+    });
+
+    test('verlangt jeden Begriff', () {
+      expect(searchIn(staff, 'claire production').length, 1);
+      expect(searchIn(staff, 'claire logistique'), isEmpty);
+    });
+
+    test('findet auch ueber die Abteilung', () {
+      expect(searchIn(staff, 'technik').single.name, 'Hans Muster');
+    });
+
+    test('achtet die Obergrenze', () {
+      expect(searchIn(staff, 'e', limit: 2).length, lessThanOrEqualTo(2));
+    });
+  });
+
+  group('mailto', () {
+    const person = Employee(
+      id: '1',
+      name: 'Hans Muster',
+      email: 'h.muster@frigemo.ch',
+      department: 'Technik',
+      lang: AppLang.de,
+    );
+
+    test('schickt an die Person, gemeinsames Postfach in Kopie', () {
+      final uri = composeMail(_draft(recipient: person));
+      expect(uri.scheme, 'mailto');
+      expect(uri.path, 'h.muster@frigemo.ch');
+      expect(uri.queryParameters['cc'], AppConfig.mailFallback);
+    });
+
+    test('ohne Namen geht die Meldung nur ans gemeinsame Postfach', () {
+      final uri = composeMail(_draft());
+      expect(uri.path, AppConfig.mailFallback);
+      expect(uri.queryParameters['cc'], isNull);
+      expect(uri.queryParameters['body'], contains(fr.t('recipient.unknown')));
+    });
+
+    test('folgt der Sprache der Person, nicht der des Terminals', () {
+      // Terminal auf Franzoesisch, Empfaenger deutschsprachig.
+      final uri = composeMail(_draft(recipient: person));
+      expect(uri.queryParameters['subject'], contains('Lieferung für Sie'));
+      expect(uri.queryParameters['body'], contains(de.t('mail.footer')));
+    });
+
+    test('markiert Kuehlware als dringend', () {
+      final normal = composeMail(_draft(recipient: person));
+      final chilled = composeMail(_draft(recipient: person, kind: 'chilled'));
+      expect(normal.queryParameters['subject'], isNot(startsWith('[')));
+      expect(chilled.queryParameters['subject'], startsWith('[DRINGEND]'));
+      expect(chilled.queryParameters['body'], contains(de.t('mail.urgentNote')));
+    });
+
+    test('nimmt Menge und Bemerkung mit', () {
+      final uri = composeMail(_draft(recipient: person, quantity: 4, note: 'Palette beschädigt'));
+      final body = uri.queryParameters['body']!;
+      expect(body, contains('${de.t('quantity')}: 4'));
+      expect(body, contains('Palette beschädigt'));
+    });
+
+    test('laesst die Bemerkungszeile weg, wenn nichts drinsteht', () {
+      final body = composeMail(_draft(recipient: person)).queryParameters['body']!;
+      expect(body, isNot(contains(de.t('mail.note'))));
     });
   });
 
@@ -97,6 +214,20 @@ void main() {
         'offline',
         'phone.title',
         'phone.button',
+        'recipient.unknown',
+        'recipient.unknown.hint',
+        'success.body.unknown',
+        'mail.subject',
+        'mail.subject.unknown',
+        'mail.urgent.prefix',
+        'mail.intro',
+        'mail.intro.unknown',
+        'mail.carrier',
+        'mail.recipient',
+        'mail.note',
+        'mail.time',
+        'mail.urgentNote',
+        'mail.footer',
         'phone.failed',
       ];
 

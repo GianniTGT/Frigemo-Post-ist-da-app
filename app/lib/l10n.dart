@@ -122,8 +122,8 @@ class L10n {
       AppLang.de: 'Dieses Terminal ist nicht autorisiert. IT informieren.',
     },
     'error.mail': {
-      AppLang.fr: 'Livraison enregistrée, mais l\u2019e-mail n\u2019est pas parti. Prévenir le destinataire par téléphone.',
-      AppLang.de: 'Lieferung erfasst, aber die E-Mail ging nicht raus. Empfänger telefonisch informieren.',
+      AppLang.fr: 'Impossible d\u2019ouvrir l\u2019application e-mail. Prévenir le destinataire par téléphone.',
+      AppLang.de: 'Die E-Mail-App liess sich nicht öffnen. Empfänger telefonisch informieren.',
     },
     'retry': {AppLang.fr: 'Réessayer', AppLang.de: 'Nochmals versuchen'},
     'close': {AppLang.fr: 'Fermer', AppLang.de: 'Schliessen'},
@@ -136,6 +136,50 @@ class L10n {
       AppLang.de: 'Telefonkontakte',
     },
     'phone.button': {AppLang.fr: 'Téléphone', AppLang.de: 'Telefon'},
+    'recipient.unknown': {
+      AppLang.fr: 'Destinataire inconnu',
+      AppLang.de: 'Empfänger unbekannt',
+    },
+    'recipient.unknown.hint': {
+      AppLang.fr: 'L\u2019annonce part uniquement à la boîte commune.',
+      AppLang.de: 'Die Meldung geht nur an das gemeinsame Postfach.',
+    },
+    'success.body.unknown': {
+      AppLang.fr: 'L\u2019annonce est prête dans l\u2019application e-mail.',
+      AppLang.de: 'Die Meldung liegt in der E-Mail-App bereit.',
+    },
+    'mail.subject': {
+      AppLang.fr: 'Livraison pour vous – {carrier}',
+      AppLang.de: 'Lieferung für Sie – {carrier}',
+    },
+    'mail.subject.unknown': {
+      AppLang.fr: 'Livraison sans destinataire – {carrier}',
+      AppLang.de: 'Lieferung ohne Empfänger – {carrier}',
+    },
+    'mail.urgent.prefix': {
+      AppLang.fr: '[URGENT] ',
+      AppLang.de: '[DRINGEND] ',
+    },
+    'mail.intro': {
+      AppLang.fr: 'Bonjour {name}, une livraison est arrivée à votre nom à la réception de Cressier.',
+      AppLang.de: 'Guten Tag {name}, am Empfang Cressier ist eine Lieferung auf Ihren Namen eingetroffen.',
+    },
+    'mail.intro.unknown': {
+      AppLang.fr: 'Une livraison est arrivée à la réception de Cressier sans nom de destinataire.',
+      AppLang.de: 'Am Empfang Cressier ist eine Lieferung ohne Empfängernamen eingetroffen.',
+    },
+    'mail.carrier': {AppLang.fr: 'Transporteur', AppLang.de: 'Transporteur'},
+    'mail.recipient': {AppLang.fr: 'Destinataire', AppLang.de: 'Empfänger'},
+    'mail.note': {AppLang.fr: 'Remarque', AppLang.de: 'Bemerkung'},
+    'mail.time': {AppLang.fr: 'Annoncé le', AppLang.de: 'Gemeldet am'},
+    'mail.urgentNote': {
+      AppLang.fr: 'Marchandise réfrigérée : merci de venir la chercher immédiatement, la chaîne du froid ne peut pas être garantie à la réception.',
+      AppLang.de: 'Kühlware: Bitte sofort abholen – am Empfang kann die Kühlkette nicht eingehalten werden.',
+    },
+    'mail.footer': {
+      AppLang.fr: 'Message automatique du terminal de réception de Cressier.',
+      AppLang.de: 'Automatische Meldung des Empfangsterminals Cressier.',
+    },
     'phone.failed': {
       AppLang.fr: 'Composer le numéro manuellement.',
       AppLang.de: 'Nummer manuell wählen.',
