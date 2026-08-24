@@ -38,8 +38,15 @@ class DeliveryDraft {
   final Employee? recipient;
 
   final int quantity;
-  final String kind;
-  final String location;
+
+  /// Angezeigte Bezeichnungen -- firmenintern benannt, deshalb steht hier
+  /// der fertige Text und keine Kennung.
+  final String kindLabel;
+  final String locationLabel;
+
+  /// Kuehlware und alles, was die Verwaltung ebenso markiert hat.
+  final bool urgent;
+
   final String note;
 
   /// Sprache, in der gemeldet wird, wenn es keinen Empfaenger gibt.
@@ -49,8 +56,9 @@ class DeliveryDraft {
     required this.carrierLabel,
     required this.recipient,
     required this.quantity,
-    required this.kind,
-    required this.location,
+    required this.kindLabel,
+    required this.locationLabel,
+    required this.urgent,
     required this.note,
     required this.terminalLang,
   });
@@ -205,7 +213,7 @@ String formatStamp(DateTime when) =>
 Uri composeMail(DeliveryDraft draft, {DateTime? now, String? sharedMailbox}) {
   final recipient = draft.recipient;
   final l = L10n(recipient?.lang ?? draft.terminalLang);
-  final urgent = draft.kind == 'chilled';
+  final urgent = draft.urgent;
   final shared = (sharedMailbox ?? AppConfig.mailFallback).trim();
 
   final to = <String>[];
@@ -231,8 +239,8 @@ Uri composeMail(DeliveryDraft draft, {DateTime? now, String? sharedMailbox}) {
     '',
     '${l.t('mail.carrier')}: ${draft.carrierLabel}',
     '${l.t('quantity')}: ${draft.quantity}',
-    '${l.t('kind.label')}: ${l.t('kind.${draft.kind}')}',
-    '${l.t('location.label')}: ${l.t('location.${draft.location}')}',
+    '${l.t('kind.label')}: ${draft.kindLabel}',
+    '${l.t('location.label')}: ${draft.locationLabel}',
     if (recipient == null) '${l.t('mail.recipient')}: ${l.t('recipient.unknown')}',
     if (draft.note.isNotEmpty) '${l.t('mail.note')}: ${draft.note}',
     '${l.t('mail.time')}: ${formatStamp(now ?? DateTime.now())}',
@@ -279,8 +287,11 @@ class ApiService {
 
   /// Uebergibt die fertige Meldung an die E-Mail-App. Abgeschickt wird sie
   /// dort von Hand – das Terminal sieht nicht, ob das passiert ist.
-  Future<void> submitDelivery(DeliveryDraft draft) async {
-    final uri = composeMail(draft);
+  Future<void> submitDelivery(
+    DeliveryDraft draft, {
+    String? sharedMailbox,
+  }) async {
+    final uri = composeMail(draft, sharedMailbox: sharedMailbox);
 
     if (AppConfig.demoMode) {
       await Future<void>.delayed(const Duration(milliseconds: 600));

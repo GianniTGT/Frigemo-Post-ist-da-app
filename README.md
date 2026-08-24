@@ -50,6 +50,24 @@ l'APK pour que la tablette voie le changement.
 La colonne `lang` (`fr` ou `de`) décide de la langue de l'e-mail pour cette
 personne, indépendamment de la langue du terminal.
 
+### Réglages sur la tablette
+
+Un appui long sur le logo, puis le code administrateur (`1234` au départ,
+modifiable), ouvre les réglages. Tout y est enregistré sur la tablette : aucun
+nouvel APK n'est nécessaire pour ces changements.
+
+- **Types d'envoi et lieux de retrait** : masquer, renommer avec la
+  désignation interne du site, ou ajouter des entrées propres à Cressier.
+  Les entrées standard se masquent seulement — elles restent récupérables.
+  Le courrier recommandé est masqué par défaut.
+- **Annonce urgente** : le drapeau qui déclenche `[URGENT]` et le renvoi vers
+  la chambre froide. Réglable aussi sur une entrée propre, pour un secteur
+  réfrigéré interne.
+- **Boîte commune** : voir ci-dessous.
+
+Une désignation interne remplace la traduction dans les deux langues : les
+noms internes ne se traduisent pas.
+
 ### Boîte commune
 
 Cette adresse reçoit chaque annonce en copie, et devient le seul destinataire
@@ -57,9 +75,11 @@ quand aucun nom ne figure sur le colis.
 
 **Par défaut il n'y en a aucune**, parce que `paketistda@frigemo.ch` n'existe
 pas encore : sans adresse, rien ne part vers une boîte morte, et l'option
-« Destinataire inconnu » reste masquée. Pour l'activer, définir la variable
-`MAIL_FALLBACK` sous Settings → Secrets and variables → Actions, puis
-reconstruire.
+« Destinataire inconnu » reste masquée.
+
+Elle se saisit dans les réglages de la tablette. La variable `MAIL_FALLBACK`
+(Settings → Secrets and variables → Actions) ne sert que de valeur de départ
+au premier démarrage.
 
 ## Serveur (plus utilisé)
 

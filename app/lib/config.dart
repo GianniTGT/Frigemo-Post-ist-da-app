@@ -72,12 +72,6 @@ const List<CarrierOption> kCarriers = [
   CarrierOption('other', '', 0xFF495057, 0xFFFFFFFF), // Label aus l10n
 ];
 
-/// Sendungsarten – 'chilled' löst beim Server die Eilmeldung aus.
-const List<String> kShipmentKinds = ['parcel', 'pallet', 'letter', 'chilled'];
-
-/// Abholorte im Werk Cressier.
-const List<String> kPickupLocations = ['reception', 'dock', 'coldroom'];
-
 /// Telefonnummern für den Notfall-Dialog.
 class PhoneContact {
   final String labelFr;

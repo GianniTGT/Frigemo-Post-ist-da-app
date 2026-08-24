@@ -115,6 +115,50 @@ class L10n {
     },
     'retry': {AppLang.fr: 'Réessayer', AppLang.de: 'Nochmals versuchen'},
     'close': {AppLang.fr: 'Fermer', AppLang.de: 'Schliessen'},
+    'admin.title': {AppLang.fr: 'Réglages', AppLang.de: 'Einstellungen'},
+    'admin.pin.title': {
+      AppLang.fr: 'Code administrateur',
+      AppLang.de: 'Administrator-Code',
+    },
+    'admin.pin.wrong': {AppLang.fr: 'Code incorrect', AppLang.de: 'Falscher Code'},
+    'admin.pin.change': {
+      AppLang.fr: 'Modifier le code',
+      AppLang.de: 'Code ändern',
+    },
+    'admin.kinds': {AppLang.fr: 'Types d\u2019envoi', AppLang.de: 'Sendungsarten'},
+    'admin.locations': {
+      AppLang.fr: 'Lieux de retrait',
+      AppLang.de: 'Abholorte',
+    },
+    'admin.mailbox': {
+      AppLang.fr: 'Boîte commune',
+      AppLang.de: 'Gemeinsames Postfach',
+    },
+    'admin.mailbox.hint': {
+      AppLang.fr: 'Vide : aucune copie, et « destinataire inconnu » reste masqué.',
+      AppLang.de: 'Leer: keine Kopie, und „Empfänger unbekannt" bleibt ausgeblendet.',
+    },
+    'admin.add': {AppLang.fr: 'Ajouter', AppLang.de: 'Hinzufügen'},
+    'admin.name': {
+      AppLang.fr: 'Désignation interne',
+      AppLang.de: 'Interne Bezeichnung',
+    },
+    'admin.name.hint': {
+      AppLang.fr: 'Vide : désignation standard',
+      AppLang.de: 'Leer: Standardbezeichnung',
+    },
+    'admin.urgent': {AppLang.fr: 'Annonce urgente', AppLang.de: 'Eilmeldung'},
+    'admin.delete': {AppLang.fr: 'Supprimer', AppLang.de: 'Löschen'},
+    'admin.reset': {AppLang.fr: 'Tout réinitialiser', AppLang.de: 'Alles zurücksetzen'},
+    'admin.builtin.hint': {
+      AppLang.fr: 'Les entrées standard se masquent, elles ne se suppriment pas.',
+      AppLang.de: 'Standardeinträge lassen sich ausblenden, nicht löschen.',
+    },
+    'admin.save': {AppLang.fr: 'Enregistrer', AppLang.de: 'Speichern'},
+    'admin.empty': {
+      AppLang.fr: 'Au moins une entrée doit rester visible.',
+      AppLang.de: 'Mindestens ein Eintrag muss sichtbar bleiben.',
+    },
     'phone.title': {
       AppLang.fr: 'Contacts téléphoniques',
       AppLang.de: 'Telefonkontakte',

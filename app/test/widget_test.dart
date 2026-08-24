@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frigemo_post_terminal/api_service.dart';
 import 'package:frigemo_post_terminal/config.dart';
 import 'package:frigemo_post_terminal/l10n.dart';
+import 'package:frigemo_post_terminal/settings.dart';
 
 const _csv = '''
 name,email,department,lang
@@ -22,7 +23,8 @@ Ohne Adresse,,Production,fr
 
 DeliveryDraft _draft({
   Employee? recipient,
-  String kind = 'parcel',
+  bool urgent = false,
+  String kindLabel = 'Colis',
   String note = '',
   int quantity = 1,
 }) =>
@@ -30,8 +32,9 @@ DeliveryDraft _draft({
       carrierLabel: 'DHL',
       recipient: recipient,
       quantity: quantity,
-      kind: kind,
-      location: 'reception',
+      kindLabel: kindLabel,
+      locationLabel: 'Réception',
+      urgent: urgent,
       note: note,
       terminalLang: AppLang.fr,
     );
@@ -154,12 +157,20 @@ void main() {
     test('markiert Kuehlware als dringend', () {
       final normal = composeMail(_draft(recipient: person), sharedMailbox: shared);
       final chilled = composeMail(
-        _draft(recipient: person, kind: 'chilled'),
+        _draft(recipient: person, urgent: true, kindLabel: 'Kühlware'),
         sharedMailbox: shared,
       );
       expect(normal.queryParameters['subject'], isNot(startsWith('[')));
       expect(chilled.queryParameters['subject'], startsWith('[DRINGEND]'));
       expect(chilled.queryParameters['body'], contains(de.t('mail.urgentNote')));
+    });
+
+    test('nimmt die firmeninterne Bezeichnung mit', () {
+      final body = composeMail(
+        _draft(recipient: person, kindLabel: 'Palette Kühlraum 3'),
+        sharedMailbox: shared,
+      ).queryParameters['body']!;
+      expect(body, contains('Palette Kühlraum 3'));
     });
 
     test('nimmt Menge und Bemerkung mit', () {
@@ -176,6 +187,69 @@ void main() {
       final body = composeMail(_draft(recipient: person), sharedMailbox: shared)
           .queryParameters['body']!;
       expect(body, isNot(contains(de.t('mail.note'))));
+    });
+  });
+
+  group('Einstellungen', () {
+    test('blendet den eingeschriebenen Brief zunaechst aus', () {
+      final settings = TerminalSettings();
+      expect(settings.kinds.map((e) => e.id), contains('letter'));
+      expect(settings.visibleKinds.map((e) => e.id), isNot(contains('letter')));
+      // Ausgeblendet, nicht geloescht: ohne neues APK zurueckholbar.
+      expect(settings.kinds.length, kDefaultKinds.length);
+    });
+
+    test('markiert Kuehlware als dringend', () {
+      final settings = TerminalSettings();
+      expect(settings.kindById('chilled')?.urgent, isTrue);
+      expect(settings.kindById('parcel')?.urgent, isFalse);
+    });
+
+    test('firmeninterne Bezeichnung geht vor der Uebersetzung', () {
+      final settings = TerminalSettings();
+      final entry = settings.kinds.firstWhere((e) => e.id == 'pallet');
+      expect(settings.labelOf(entry, fr, 'kind'), 'Palette');
+
+      settings.updateKind('pallet', (e) => e.copyWith(customLabel: 'Euro-Palette'));
+      final renamed = settings.kinds.firstWhere((e) => e.id == 'pallet');
+      expect(settings.labelOf(renamed, fr, 'kind'), 'Euro-Palette');
+      expect(settings.labelOf(renamed, de, 'kind'), 'Euro-Palette');
+    });
+
+    test('nimmt eigene Eintraege auf und wieder heraus', () {
+      final settings = TerminalSettings();
+      final id = settings.addLocation('Rampe Nord');
+      final added = settings.locations.firstWhere((e) => e.id == id);
+      expect(added.isBuiltIn, isFalse);
+      expect(settings.labelOf(added, fr, 'location'), 'Rampe Nord');
+
+      settings.remove(id);
+      expect(settings.locations.any((e) => e.id == id), isFalse);
+    });
+
+    test('loescht eingebaute Eintraege nicht', () {
+      final settings = TerminalSettings();
+      settings.remove('parcel');
+      expect(settings.kinds.any((e) => e.id == 'parcel'), isTrue);
+    });
+
+    test('uebersteht Speichern und Laden', () {
+      final settings = TerminalSettings();
+      settings.addKind('Tiefkühl intern', urgent: true);
+      settings.updateKind('letter', (e) => e.copyWith(visible: true));
+      settings.setSharedMailbox('paket@frigemo.ch');
+
+      final restored = TerminalSettings.fromJson(settings.toJson());
+      expect(restored.visibleKinds.map((e) => e.id), contains('letter'));
+      expect(restored.sharedMailbox, 'paket@frigemo.ch');
+      expect(restored.kinds.last.customLabel, 'Tiefkühl intern');
+      expect(restored.kinds.last.urgent, isTrue);
+    });
+
+    test('faellt bei beschaedigten Daten auf die Standardwerte zurueck', () {
+      final restored = TerminalSettings.fromJson({'kinds': 'kaputt'});
+      expect(restored.kinds.length, kDefaultKinds.length);
+      expect(restored.hasSharedMailbox, isFalse);
     });
   });
 
@@ -235,6 +309,23 @@ void main() {
         'error.mail',
         'retry',
         'close',
+        'admin.title',
+        'admin.pin.title',
+        'admin.pin.wrong',
+        'admin.pin.change',
+        'admin.kinds',
+        'admin.locations',
+        'admin.mailbox',
+        'admin.mailbox.hint',
+        'admin.add',
+        'admin.name',
+        'admin.name.hint',
+        'admin.urgent',
+        'admin.delete',
+        'admin.reset',
+        'admin.builtin.hint',
+        'admin.save',
+        'admin.empty',
         'phone.title',
         'phone.button',
         'recipient.unknown',

@@ -7,11 +7,18 @@ import '../api_service.dart';
 import '../config.dart';
 import '../l10n.dart';
 import '../main.dart' show AppColors;
+import '../settings.dart';
+import 'settings_screen.dart';
 
 class DeliveryScreen extends StatefulWidget {
   final LocaleController locale;
+  final TerminalSettings settings;
 
-  const DeliveryScreen({super.key, required this.locale});
+  const DeliveryScreen({
+    super.key,
+    required this.locale,
+    required this.settings,
+  });
 
   @override
   State<DeliveryScreen> createState() => _DeliveryScreenState();
@@ -26,8 +33,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   CarrierOption? _carrier;
   Employee? _recipient;
   int _quantity = 1;
-  String _kind = kShipmentKinds.first;
-  String _location = kPickupLocations.first;
+  String? _kind;
+  String? _location;
 
   List<Employee> _results = const [];
   bool _searching = false;
@@ -45,6 +52,19 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   Timer? _successTimer;
 
   L10n get _l => L10n(widget.locale.value);
+
+  /// Erster sichtbarer Eintrag, falls nichts gewaehlt ist oder die Auswahl
+  /// inzwischen ausgeblendet wurde.
+  OptionEntry _current(List<OptionEntry> visible, String? id) {
+    for (final entry in visible) {
+      if (entry.id == id) return entry;
+    }
+    return visible.first;
+  }
+
+  OptionEntry get _kindEntry => _current(widget.settings.visibleKinds, _kind);
+  OptionEntry get _locationEntry =>
+      _current(widget.settings.visibleLocations, _location);
   bool get _ready =>
       _carrier != null &&
       (_recipient != null || _unknownRecipient) &&
@@ -168,14 +188,16 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           _carrier!.id == 'other' ? _l.t('carrier.other') : _carrier!.label,
       recipient: _recipient,
       quantity: _quantity,
-      kind: _kind,
-      location: _location,
+      kindLabel: widget.settings.labelOf(_kindEntry, _l, 'kind'),
+      locationLabel: widget.settings.labelOf(_locationEntry, _l, 'location'),
+      urgent: _kindEntry.urgent,
       note: _noteCtrl.text.trim(),
       terminalLang: widget.locale.value,
     );
 
     try {
-      await _api.submitDelivery(draft);
+      await _api.submitDelivery(draft,
+          sharedMailbox: widget.settings.sharedMailbox);
       if (!mounted) return;
       setState(() {
         _submitting = false;
@@ -244,8 +266,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       _recipient = null;
       _quantity = 1;
       _unknownRecipient = false;
-      _kind = kShipmentKinds.first;
-      _location = kPickupLocations.first;
+      _kind = null;
+      _location = null;
       _results = const [];
       _searching = false;
       _searchFailed = false;
@@ -255,6 +277,71 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       _searchCtrl.addListener(_onSearchChanged);
       _noteCtrl.clear();
     });
+  }
+
+  // --- Verwaltung ------------------------------------------------------
+
+  Future<void> _openSettings() async {
+    _idle?.cancel();
+    final entered = await _askPin();
+    if (!mounted || entered == null) return;
+
+    if (entered.trim() != widget.settings.pin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_l.t('admin.pin.wrong'))),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SettingsScreen(
+          settings: widget.settings,
+          locale: widget.locale,
+        ),
+      ),
+    );
+    // Nach einer Aenderung kann die bisherige Auswahl ausgeblendet sein.
+    if (mounted) _reset();
+  }
+
+  Future<String?> _askPin() {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: Text(
+          _l.t('admin.pin.title'),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: SizedBox(
+          width: 340,
+          child: TextField(
+            controller: controller,
+            autofocus: true,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 26, letterSpacing: 8),
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+            onSubmitted: (value) => Navigator.pop(dialogContext, value),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(_l.t('close'), style: const TextStyle(fontSize: 18)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: Text(_l.t('admin.title'),
+                style: const TextStyle(fontSize: 18)),
+          ),
+        ],
+      ),
+    );
   }
 
   // --- Telefon ---------------------------------------------------------
@@ -348,16 +435,21 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         children: [
           // Weisse Flaeche, weil der Zusatz "natürlich frischer" im Logo
           // dunkel ist und auf dem dunklen Balken sonst verschwindet.
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Image.asset(
-              'assets/frigemo-logo.png',
-              height: 34,
-              fit: BoxFit.contain,
+          // Verwaltung liegt hinter einem langen Druck aufs Logo: am
+          // Empfang faellt niemand versehentlich hinein.
+          GestureDetector(
+            onLongPress: _openSettings,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Image.asset(
+                'assets/frigemo-logo.png',
+                height: 34,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
           const SizedBox(width: 14),
@@ -431,26 +523,58 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   Widget _formView() {
-    // Scrollbar statt Spacer: kein Overflow auf kleineren oder hochkant
-    // montierten Bildschirmen.
+    // Auf dem Tablet quer stehen Transporteur und Empfaenger links, die
+    // Angaben rechts: alle drei Schritte ohne Scrollen im Blick. Schmalere
+    // oder hochkant montierte Bildschirme behalten die eine Bahn.
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+
+    final chooser = <Widget>[
+      _stepLabel('1', _l.t('step.carrier')),
+      const SizedBox(height: 14),
+      _carrierGrid(),
+      const SizedBox(height: 32),
+      _stepLabel('2', _l.t('step.recipient')),
+      const SizedBox(height: 14),
+      _recipientField(),
+    ];
+
+    final details = <Widget>[
+      _stepLabel('3', _l.t('step.details')),
+      const SizedBox(height: 14),
+      _detailsCard(),
+    ];
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _stepLabel('1', _l.t('step.carrier')),
-          const SizedBox(height: 14),
-          _carrierGrid(),
-          const SizedBox(height: 32),
-          _stepLabel('2', _l.t('step.recipient')),
-          const SizedBox(height: 14),
-          _recipientField(),
-          const SizedBox(height: 32),
-          _stepLabel('3', _l.t('step.details')),
-          const SizedBox(height: 14),
-          _detailsCard(),
-        ],
-      ),
+      padding: const EdgeInsets.all(24),
+      child: wide
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: chooser,
+                  ),
+                ),
+                const SizedBox(width: 32),
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: details,
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...chooser,
+                const SizedBox(height: 32),
+                ...details,
+              ],
+            ),
     );
   }
 
@@ -631,7 +755,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         const SizedBox(height: 10),
         _searchFeedback(),
         const SizedBox(height: 4),
-        if (AppConfig.hasSharedMailbox)
+        if (widget.settings.hasSharedMailbox)
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
@@ -819,22 +943,28 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             spacing: 10,
             runSpacing: 10,
             children: [
-              for (final k in kShipmentKinds)
+              for (final entry in widget.settings.visibleKinds)
                 _choiceChip(
-                  label: _l.t('kind.$k'),
-                  selected: _kind == k,
-                  color: k == 'chilled' ? AppColors.alert : AppColors.ink,
+                  label: widget.settings.labelOf(entry, _l, 'kind'),
+                  selected: _kindEntry.id == entry.id,
+                  color: entry.urgent ? AppColors.alert : AppColors.ink,
                   onTap: () {
                     setState(() {
-                      _kind = k;
-                      if (k == 'chilled') _location = 'coldroom';
+                      _kind = entry.id;
+                      // Kuehlware gehoert in den Kuehlraum -- sofern es ihn
+                      // in den Einstellungen noch gibt.
+                      if (entry.urgent) {
+                        final cold = widget.settings.visibleLocations
+                            .where((e) => e.id == 'coldroom');
+                        if (cold.isNotEmpty) _location = cold.first.id;
+                      }
                     });
                     _touch();
                   },
                 ),
             ],
           ),
-          if (_kind == 'chilled') ...[
+          if (_kindEntry.urgent) ...[
             const SizedBox(height: 12),
             _hintRow(Icons.ac_unit, _l.t('chilled.warning'), AppColors.alert),
           ],
@@ -848,13 +978,13 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             spacing: 10,
             runSpacing: 10,
             children: [
-              for (final loc in kPickupLocations)
+              for (final entry in widget.settings.visibleLocations)
                 _choiceChip(
-                  label: _l.t('location.$loc'),
-                  selected: _location == loc,
+                  label: widget.settings.labelOf(entry, _l, 'location'),
+                  selected: _locationEntry.id == entry.id,
                   color: AppColors.ink,
                   onTap: () {
-                    setState(() => _location = loc);
+                    setState(() => _location = entry.id);
                     _touch();
                   },
                 ),
