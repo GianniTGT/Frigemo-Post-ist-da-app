@@ -1,12 +1,25 @@
-name: APK bauen und als Release veröffentlichen
+name: Terminal-APK prüfen und veröffentlichen
 
-# Der Build startet nur bei einem Versions-Tag oder von Hand.
+# Zwei Betriebsarten im selben Job:
+#
+#   Tag 'v*' oder "Run workflow"  -> vollstaendiger Build, Release mit APK.
+#   Pull Request auf .github/**   -> laeuft nur bis `flutter analyze` plus
+#                                    Selbsttest des Signatur-Skripts. Es wird
+#                                    nichts gebaut und nichts veroeffentlicht.
+#
+# Die PR-Variante gibt es, weil eine kaputte Workflow-Datei sonst erst beim
+# Release auffaellt: der erste Lauf dieses Workflows ist mit 0 Jobs
+# gescheitert, weil ein step-`if` den secrets-Kontext benutzt hat.
+#
 # Das APK wird NICHT als Actions-Artefakt hochgeladen (das würde auf das
 # 500-MB-Speicherkontingent zählen), sondern direkt an ein Release gehängt.
 on:
   push:
     tags:
       - 'v*'
+  pull_request:
+    paths:
+      - '.github/**'
   workflow_dispatch:
     inputs:
       version:
@@ -27,6 +40,7 @@ jobs:
 
       - name: Version bestimmen
         id: version
+        if: github.event_name != 'pull_request'
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
@@ -37,6 +51,7 @@ jobs:
       # Fehlende Repository-Variablen würden sonst still ein APK erzeugen, das
       # auf localhost zeigt – auf dem Tablet unbrauchbar, aber erst dort sichtbar.
       - name: Konfiguration prüfen
+        if: github.event_name != 'pull_request'
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           TERMINAL_ID: ${{ vars.TERMINAL_ID }}
@@ -80,6 +95,26 @@ jobs:
         working-directory: app
         run: flutter analyze --no-fatal-infos
 
+      # Der fragile Teil ist inject_signing.py: es patcht eine Datei, die
+      # Flutter generiert und jederzeit aendern kann. Hier laeuft es gegen die
+      # echte, gerade erzeugte Vorlage und bricht ab, wenn sie nicht mehr
+      # passt -- Monate bevor jemand einen Keystore hinterlegt und sich auf
+      # die Signatur verlaesst.
+      - name: Signatur-Patch gegen die aktuelle Flutter-Vorlage prüfen
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 .github/scripts/inject_signing.py app/android
+          python3 .github/scripts/inject_signing.py app/android   # idempotent?
+          gradle=$(ls app/android/app/build.gradle.kts app/android/app/build.gradle 2>/dev/null | head -1)
+          grep -q 'FRIGEMO_KEYSTORE' "$gradle"
+          echo "Patch sitzt in $gradle."
+          {
+            echo "### Prüflauf ohne Veröffentlichung"
+            echo
+            echo "\`flutter analyze\` und der Selbsttest von \`inject_signing.py\` sind gelaufen."
+            echo "Es wurde kein APK gebaut und keine Release angelegt — das passiert nur bei einem Tag \`v*\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # Optional: eigener Signaturschlüssel. Ohne die Secrets baut Flutter mit
       # dem Debug-Key – installierbar, aber ein späterer Wechsel auf einen
       # eigenen Key erzwingt eine Neuinstallation auf dem Tablet.
@@ -89,6 +124,7 @@ jobs:
       # dem Debug-Key signiert.
       - name: Signaturschlüssel einrichten
         id: signing
+        if: github.event_name != 'pull_request'
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
@@ -102,6 +138,7 @@ jobs:
           echo "signed=true" >> "$GITHUB_OUTPUT"
 
       - name: APK bauen
+        if: github.event_name != 'pull_request'
         working-directory: app
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
@@ -138,12 +175,14 @@ jobs:
           fi
 
       - name: APK umbenennen
+        if: github.event_name != 'pull_request'
         run: |
           mv app/build/app/outputs/flutter-apk/app-release.apk \
              frigemo-post-terminal-${{ steps.version.outputs.tag }}.apk
           ls -lh frigemo-post-terminal-*.apk
 
       - name: Release anlegen und APK anhängen
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
