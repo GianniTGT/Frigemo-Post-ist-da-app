@@ -105,37 +105,109 @@ class L10n {
       AppLang.fr: 'Envoi impossible',
       AppLang.de: 'Senden nicht möglich',
     },
-    'error.network': {
-      AppLang.fr: 'Le terminal n\u2019atteint pas le serveur. Vérifier le câble réseau, puis réessayer.',
-      AppLang.de: 'Das Terminal erreicht den Server nicht. Netzwerkkabel prüfen, dann nochmals versuchen.',
-    },
-    'error.timeout': {
-      AppLang.fr: 'Le serveur ne répond pas. Réessayer dans un moment.',
-      AppLang.de: 'Der Server antwortet nicht. In einem Moment nochmals versuchen.',
-    },
-    'error.server': {
-      AppLang.fr: 'Le serveur a refusé l\u2019envoi. Prévenir l\u2019informatique.',
-      AppLang.de: 'Der Server hat die Sendung abgelehnt. IT informieren.',
-    },
-    'error.auth': {
-      AppLang.fr: 'Ce terminal n\u2019est pas autorisé. Prévenir l\u2019informatique.',
-      AppLang.de: 'Dieses Terminal ist nicht autorisiert. IT informieren.',
+    'error.list': {
+      AppLang.fr: 'La liste du personnel n\u2019a pas pu être lue. Prévenir l\u2019informatique.',
+      AppLang.de: 'Die Personalliste liess sich nicht lesen. IT informieren.',
     },
     'error.mail': {
-      AppLang.fr: 'Livraison enregistrée, mais l\u2019e-mail n\u2019est pas parti. Prévenir le destinataire par téléphone.',
-      AppLang.de: 'Lieferung erfasst, aber die E-Mail ging nicht raus. Empfänger telefonisch informieren.',
+      AppLang.fr: 'Impossible d\u2019ouvrir l\u2019application e-mail. Prévenir le destinataire par téléphone.',
+      AppLang.de: 'Die E-Mail-App liess sich nicht öffnen. Empfänger telefonisch informieren.',
     },
     'retry': {AppLang.fr: 'Réessayer', AppLang.de: 'Nochmals versuchen'},
     'close': {AppLang.fr: 'Fermer', AppLang.de: 'Schliessen'},
-    'offline': {
-      AppLang.fr: 'Serveur injoignable – annoncer par téléphone',
-      AppLang.de: 'Server nicht erreichbar – telefonisch melden',
+    'admin.title': {AppLang.fr: 'Réglages', AppLang.de: 'Einstellungen'},
+    'admin.pin.title': {
+      AppLang.fr: 'Code administrateur',
+      AppLang.de: 'Administrator-Code',
+    },
+    'admin.pin.wrong': {AppLang.fr: 'Code incorrect', AppLang.de: 'Falscher Code'},
+    'admin.pin.change': {
+      AppLang.fr: 'Modifier le code',
+      AppLang.de: 'Code ändern',
+    },
+    'admin.kinds': {AppLang.fr: 'Types d\u2019envoi', AppLang.de: 'Sendungsarten'},
+    'admin.locations': {
+      AppLang.fr: 'Lieux de retrait',
+      AppLang.de: 'Abholorte',
+    },
+    'admin.mailbox': {
+      AppLang.fr: 'Boîte commune',
+      AppLang.de: 'Gemeinsames Postfach',
+    },
+    'admin.mailbox.hint': {
+      AppLang.fr: 'Vide : aucune copie, et « destinataire inconnu » reste masqué.',
+      AppLang.de: 'Leer: keine Kopie, und „Empfänger unbekannt" bleibt ausgeblendet.',
+    },
+    'admin.add': {AppLang.fr: 'Ajouter', AppLang.de: 'Hinzufügen'},
+    'admin.name': {
+      AppLang.fr: 'Désignation interne',
+      AppLang.de: 'Interne Bezeichnung',
+    },
+    'admin.name.hint': {
+      AppLang.fr: 'Vide : désignation standard',
+      AppLang.de: 'Leer: Standardbezeichnung',
+    },
+    'admin.urgent': {AppLang.fr: 'Annonce urgente', AppLang.de: 'Eilmeldung'},
+    'admin.delete': {AppLang.fr: 'Supprimer', AppLang.de: 'Löschen'},
+    'admin.reset': {AppLang.fr: 'Tout réinitialiser', AppLang.de: 'Alles zurücksetzen'},
+    'admin.builtin.hint': {
+      AppLang.fr: 'Les entrées standard se masquent, elles ne se suppriment pas.',
+      AppLang.de: 'Standardeinträge lassen sich ausblenden, nicht löschen.',
+    },
+    'admin.save': {AppLang.fr: 'Enregistrer', AppLang.de: 'Speichern'},
+    'admin.empty': {
+      AppLang.fr: 'Au moins une entrée doit rester visible.',
+      AppLang.de: 'Mindestens ein Eintrag muss sichtbar bleiben.',
     },
     'phone.title': {
       AppLang.fr: 'Contacts téléphoniques',
       AppLang.de: 'Telefonkontakte',
     },
     'phone.button': {AppLang.fr: 'Téléphone', AppLang.de: 'Telefon'},
+    'recipient.unknown': {
+      AppLang.fr: 'Destinataire inconnu',
+      AppLang.de: 'Empfänger unbekannt',
+    },
+    'recipient.unknown.hint': {
+      AppLang.fr: 'L\u2019annonce part uniquement à la boîte commune.',
+      AppLang.de: 'Die Meldung geht nur an das gemeinsame Postfach.',
+    },
+    'success.body.unknown': {
+      AppLang.fr: 'L\u2019annonce est prête dans l\u2019application e-mail.',
+      AppLang.de: 'Die Meldung liegt in der E-Mail-App bereit.',
+    },
+    'mail.subject': {
+      AppLang.fr: 'Livraison pour vous – {carrier}',
+      AppLang.de: 'Lieferung für Sie – {carrier}',
+    },
+    'mail.subject.unknown': {
+      AppLang.fr: 'Livraison sans destinataire – {carrier}',
+      AppLang.de: 'Lieferung ohne Empfänger – {carrier}',
+    },
+    'mail.urgent.prefix': {
+      AppLang.fr: '[URGENT] ',
+      AppLang.de: '[DRINGEND] ',
+    },
+    'mail.intro': {
+      AppLang.fr: 'Bonjour {name}, une livraison est arrivée à votre nom à la réception de Cressier.',
+      AppLang.de: 'Guten Tag {name}, am Empfang Cressier ist eine Lieferung auf Ihren Namen eingetroffen.',
+    },
+    'mail.intro.unknown': {
+      AppLang.fr: 'Une livraison est arrivée à la réception de Cressier sans nom de destinataire.',
+      AppLang.de: 'Am Empfang Cressier ist eine Lieferung ohne Empfängernamen eingetroffen.',
+    },
+    'mail.carrier': {AppLang.fr: 'Transporteur', AppLang.de: 'Transporteur'},
+    'mail.recipient': {AppLang.fr: 'Destinataire', AppLang.de: 'Empfänger'},
+    'mail.note': {AppLang.fr: 'Remarque', AppLang.de: 'Bemerkung'},
+    'mail.time': {AppLang.fr: 'Annoncé le', AppLang.de: 'Gemeldet am'},
+    'mail.urgentNote': {
+      AppLang.fr: 'Marchandise réfrigérée : merci de venir la chercher immédiatement, la chaîne du froid ne peut pas être garantie à la réception.',
+      AppLang.de: 'Kühlware: Bitte sofort abholen – am Empfang kann die Kühlkette nicht eingehalten werden.',
+    },
+    'mail.footer': {
+      AppLang.fr: 'Message automatique du terminal de réception de Cressier.',
+      AppLang.de: 'Automatische Meldung des Empfangsterminals Cressier.',
+    },
     'phone.failed': {
       AppLang.fr: 'Composer le numéro manuellement.',
       AppLang.de: 'Nummer manuell wählen.',

@@ -7,11 +7,18 @@ import '../api_service.dart';
 import '../config.dart';
 import '../l10n.dart';
 import '../main.dart' show AppColors;
+import '../settings.dart';
+import 'settings_screen.dart';
 
 class DeliveryScreen extends StatefulWidget {
   final LocaleController locale;
+  final TerminalSettings settings;
 
-  const DeliveryScreen({super.key, required this.locale});
+  const DeliveryScreen({
+    super.key,
+    required this.locale,
+    required this.settings,
+  });
 
   @override
   State<DeliveryScreen> createState() => _DeliveryScreenState();
@@ -26,30 +33,47 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   CarrierOption? _carrier;
   Employee? _recipient;
   int _quantity = 1;
-  String _kind = kShipmentKinds.first;
-  String _location = kPickupLocations.first;
+  String? _kind;
+  String? _location;
 
   List<Employee> _results = const [];
   bool _searching = false;
   bool _searchFailed = false;
   bool _submitting = false;
   bool _success = false;
-  bool _online = true;
+
+  /// Auf der Sendung steht kein Name. Bewusst gewaehlt, nicht bloss "noch
+  /// nichts ausgewaehlt" -- sonst ginge eine Meldung schon durch, weil
+  /// jemand die Suche vergessen hat.
+  bool _unknownRecipient = false;
 
   Timer? _debounce;
   Timer? _idle;
   Timer? _successTimer;
-  Timer? _healthTimer;
 
   L10n get _l => L10n(widget.locale.value);
-  bool get _ready => _carrier != null && _recipient != null && !_submitting;
+
+  /// Erster sichtbarer Eintrag, falls nichts gewaehlt ist oder die Auswahl
+  /// inzwischen ausgeblendet wurde.
+  OptionEntry _current(List<OptionEntry> visible, String? id) {
+    for (final entry in visible) {
+      if (entry.id == id) return entry;
+    }
+    return visible.first;
+  }
+
+  OptionEntry get _kindEntry => _current(widget.settings.visibleKinds, _kind);
+  OptionEntry get _locationEntry =>
+      _current(widget.settings.visibleLocations, _location);
+  bool get _ready =>
+      _carrier != null &&
+      (_recipient != null || _unknownRecipient) &&
+      !_submitting;
 
   @override
   void initState() {
     super.initState();
     _searchCtrl.addListener(_onSearchChanged);
-    _checkHealth();
-    _healthTimer = Timer.periodic(AppConfig.healthInterval, (_) => _checkHealth());
   }
 
   @override
@@ -57,7 +81,6 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     _debounce?.cancel();
     _idle?.cancel();
     _successTimer?.cancel();
-    _healthTimer?.cancel();
     _searchCtrl.dispose();
     _noteCtrl.dispose();
     _searchFocus.dispose();
@@ -65,19 +88,14 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     super.dispose();
   }
 
-  // --- Server-Status ---------------------------------------------------
-
-  Future<void> _checkHealth() async {
-    final ok = await _api.health();
-    if (!mounted || ok == _online) return;
-    setState(() => _online = ok);
-  }
-
   // --- Leerlauf: Formular zurücksetzen, wenn niemand mehr davorsteht ----
 
   void _touch() {
     _idle?.cancel();
-    if (_carrier == null && _recipient == null && _searchCtrl.text.isEmpty) {
+    if (_carrier == null &&
+        _recipient == null &&
+        !_unknownRecipient &&
+        _searchCtrl.text.isEmpty) {
       return;
     }
     _idle = Timer(AppConfig.idleTimeout, () {
@@ -89,7 +107,12 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
   void _onSearchChanged() {
     // Sobald wieder getippt wird, ist die alte Auswahl ungültig.
-    if (_recipient != null) setState(() => _recipient = null);
+    if (_recipient != null || _unknownRecipient) {
+      setState(() {
+        _recipient = null;
+        _unknownRecipient = false;
+      });
+    }
 
     _touch();
     _debounce?.cancel();
@@ -116,17 +139,13 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         _results = found;
         _searching = false;
         _searchFailed = false;
-        _online = true;
       });
-    } on ApiException catch (e) {
+    } on ApiException {
       if (!mounted) return;
       setState(() {
         _results = const [];
         _searching = false;
         _searchFailed = true;
-        if (e.kind == ApiErrorKind.network || e.kind == ApiErrorKind.timeout) {
-          _online = false;
-        }
       });
     }
   }
@@ -165,22 +184,24 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     _idle?.cancel();
 
     final draft = DeliveryDraft(
-      carrierId: _carrier!.id,
-      carrierLabel: _carrier!.id == 'other' ? _l.t('carrier.other') : _carrier!.label,
-      employeeId: _recipient!.id,
+      carrierLabel:
+          _carrier!.id == 'other' ? _l.t('carrier.other') : _carrier!.label,
+      recipient: _recipient,
       quantity: _quantity,
-      kind: _kind,
-      location: _location,
+      kindLabel: widget.settings.labelOf(_kindEntry, _l, 'kind'),
+      locationLabel: widget.settings.labelOf(_locationEntry, _l, 'location'),
+      urgent: _kindEntry.urgent,
       note: _noteCtrl.text.trim(),
+      terminalLang: widget.locale.value,
     );
 
     try {
-      await _api.submitDelivery(draft);
+      await _api.submitDelivery(draft,
+          sharedMailbox: widget.settings.sharedMailbox);
       if (!mounted) return;
       setState(() {
         _submitting = false;
         _success = true;
-        _online = true;
       });
       _successTimer?.cancel();
       _successTimer = Timer(AppConfig.successDuration, () {
@@ -188,20 +209,12 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       });
     } on ApiException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _submitting = false;
-        if (e.kind == ApiErrorKind.network || e.kind == ApiErrorKind.timeout) {
-          _online = false;
-        }
-      });
+      setState(() => _submitting = false);
       _showError(e);
     }
   }
 
   void _showError(ApiException error) {
-    final retryable = error.kind != ApiErrorKind.mailFailed &&
-        error.kind != ApiErrorKind.unauthorized;
-
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -226,24 +239,20 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              if (error.kind == ApiErrorKind.mailFailed) _reset();
-            },
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text(_l.t('close'), style: const TextStyle(fontSize: 18)),
           ),
-          if (retryable)
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              ),
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                _submit();
-              },
-              child: Text(_l.t('retry'), style: const TextStyle(fontSize: 18)),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             ),
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _submit();
+            },
+            child: Text(_l.t('retry'), style: const TextStyle(fontSize: 18)),
+          ),
         ],
       ),
     );
@@ -256,8 +265,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       _carrier = null;
       _recipient = null;
       _quantity = 1;
-      _kind = kShipmentKinds.first;
-      _location = kPickupLocations.first;
+      _unknownRecipient = false;
+      _kind = null;
+      _location = null;
       _results = const [];
       _searching = false;
       _searchFailed = false;
@@ -267,6 +277,71 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       _searchCtrl.addListener(_onSearchChanged);
       _noteCtrl.clear();
     });
+  }
+
+  // --- Verwaltung ------------------------------------------------------
+
+  Future<void> _openSettings() async {
+    _idle?.cancel();
+    final entered = await _askPin();
+    if (!mounted || entered == null) return;
+
+    if (entered.trim() != widget.settings.pin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_l.t('admin.pin.wrong'))),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SettingsScreen(
+          settings: widget.settings,
+          locale: widget.locale,
+        ),
+      ),
+    );
+    // Nach einer Aenderung kann die bisherige Auswahl ausgeblendet sein.
+    if (mounted) _reset();
+  }
+
+  Future<String?> _askPin() {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: Text(
+          _l.t('admin.pin.title'),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: SizedBox(
+          width: 340,
+          child: TextField(
+            controller: controller,
+            autofocus: true,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 26, letterSpacing: 8),
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+            onSubmitted: (value) => Navigator.pop(dialogContext, value),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(_l.t('close'), style: const TextStyle(fontSize: 18)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: Text(_l.t('admin.title'),
+                style: const TextStyle(fontSize: 18)),
+          ),
+        ],
+      ),
+    );
   }
 
   // --- Telefon ---------------------------------------------------------
@@ -355,21 +430,55 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       foregroundColor: Colors.white,
       elevation: 0,
       toolbarHeight: 82,
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+      titleSpacing: 16,
+      title: Row(
         children: [
-          Text(
-            _l.t('app.title'),
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+          // Weisse Flaeche, weil der Zusatz "natürlich frischer" im Logo
+          // dunkel ist und auf dem dunklen Balken sonst verschwindet.
+          // Verwaltung liegt hinter einem langen Druck aufs Logo: am
+          // Empfang faellt niemand versehentlich hinein.
+          GestureDetector(
+            onLongPress: _openSettings,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Image.asset(
+                'assets/frigemo-logo.png',
+                height: 34,
+                fit: BoxFit.contain,
+              ),
+            ),
           ),
-          Text(
-            _l.t('app.subtitle').toUpperCase(),
-            style: const TextStyle(
-              fontSize: 12,
-              letterSpacing: 2.4,
-              color: Color(0xFF9FB3C1),
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _l.t('app.title'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  _l.t('app.subtitle').toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    letterSpacing: 2.4,
+                    color: Color(0xFF9FB3C1),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -410,55 +519,62 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           ),
         ),
       ],
-      bottom: _online
-          ? null
-          : PreferredSize(
-              preferredSize: const Size.fromHeight(44),
-              child: Container(
-                width: double.infinity,
-                color: AppColors.alert,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.wifi_off, color: Colors.white, size: 20),
-                    const SizedBox(width: 10),
-                    Text(
-                      _l.t('offline'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
     );
   }
 
   Widget _formView() {
-    // Scrollbar statt Spacer: kein Overflow auf kleineren oder hochkant
-    // montierten Bildschirmen.
+    // Auf dem Tablet quer stehen Transporteur und Empfaenger links, die
+    // Angaben rechts: alle drei Schritte ohne Scrollen im Blick. Schmalere
+    // oder hochkant montierte Bildschirme behalten die eine Bahn.
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+
+    final chooser = <Widget>[
+      _stepLabel('1', _l.t('step.carrier')),
+      const SizedBox(height: 14),
+      _carrierGrid(),
+      const SizedBox(height: 32),
+      _stepLabel('2', _l.t('step.recipient')),
+      const SizedBox(height: 14),
+      _recipientField(),
+    ];
+
+    final details = <Widget>[
+      _stepLabel('3', _l.t('step.details')),
+      const SizedBox(height: 14),
+      _detailsCard(),
+    ];
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _stepLabel('1', _l.t('step.carrier')),
-          const SizedBox(height: 14),
-          _carrierGrid(),
-          const SizedBox(height: 32),
-          _stepLabel('2', _l.t('step.recipient')),
-          const SizedBox(height: 14),
-          _recipientField(),
-          const SizedBox(height: 32),
-          _stepLabel('3', _l.t('step.details')),
-          const SizedBox(height: 14),
-          _detailsCard(),
-        ],
-      ),
+      padding: const EdgeInsets.all(24),
+      child: wide
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: chooser,
+                  ),
+                ),
+                const SizedBox(width: 32),
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: details,
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...chooser,
+                const SizedBox(height: 32),
+                ...details,
+              ],
+            ),
     );
   }
 
@@ -554,6 +670,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   Widget _recipientField() {
+    if (_unknownRecipient) return _unknownRecipientCard();
+
     if (_recipient != null) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -636,7 +754,87 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         ),
         const SizedBox(height: 10),
         _searchFeedback(),
+        const SizedBox(height: 4),
+        if (widget.settings.hasSharedMailbox)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () {
+              _searchFocus.unfocus();
+              setState(() {
+                _unknownRecipient = true;
+                _recipient = null;
+                _results = const [];
+                _searching = false;
+                _searchFailed = false;
+                _searchCtrl.removeListener(_onSearchChanged);
+                _searchCtrl.clear();
+                _searchCtrl.addListener(_onSearchChanged);
+              });
+              _touch();
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.inkSoft),
+            icon: const Icon(Icons.help_outline, size: 22),
+            label: Text(
+              _l.t('recipient.unknown'),
+              style: const TextStyle(fontSize: 17),
+            ),
+          ),
+        ),
       ],
+    );
+  }
+
+  /// Auf mancher Sendung steht kein Name. Dann geht die Meldung nur an das
+  /// gemeinsame Postfach – der Zustand muss aber sichtbar sein, damit ihn
+  /// niemand aus Versehen stehen laesst.
+  Widget _unknownRecipientCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.alert, width: 2),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.help_outline, color: AppColors.alert, size: 30),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _l.t('recipient.unknown'),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _l.t('recipient.unknown.hint'),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: AppColors.inkSoft,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() => _unknownRecipient = false);
+              _searchFocus.requestFocus();
+              _touch();
+            },
+            child: Text(
+              _l.t('search.change'),
+              style: const TextStyle(fontSize: 18),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -646,7 +844,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     if (_searchFailed) {
       return _hintRow(
         Icons.cloud_off,
-        _l.t(_online ? 'error.server' : 'error.network'),
+        _l.t('error.list'),
         AppColors.danger,
         action: TextButton(
           onPressed: () => _runSearch(query),
@@ -745,22 +943,28 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             spacing: 10,
             runSpacing: 10,
             children: [
-              for (final k in kShipmentKinds)
+              for (final entry in widget.settings.visibleKinds)
                 _choiceChip(
-                  label: _l.t('kind.$k'),
-                  selected: _kind == k,
-                  color: k == 'chilled' ? AppColors.alert : AppColors.ink,
+                  label: widget.settings.labelOf(entry, _l, 'kind'),
+                  selected: _kindEntry.id == entry.id,
+                  color: entry.urgent ? AppColors.alert : AppColors.ink,
                   onTap: () {
                     setState(() {
-                      _kind = k;
-                      if (k == 'chilled') _location = 'coldroom';
+                      _kind = entry.id;
+                      // Kuehlware gehoert in den Kuehlraum -- sofern es ihn
+                      // in den Einstellungen noch gibt.
+                      if (entry.urgent) {
+                        final cold = widget.settings.visibleLocations
+                            .where((e) => e.id == 'coldroom');
+                        if (cold.isNotEmpty) _location = cold.first.id;
+                      }
                     });
                     _touch();
                   },
                 ),
             ],
           ),
-          if (_kind == 'chilled') ...[
+          if (_kindEntry.urgent) ...[
             const SizedBox(height: 12),
             _hintRow(Icons.ac_unit, _l.t('chilled.warning'), AppColors.alert),
           ],
@@ -774,13 +978,13 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             spacing: 10,
             runSpacing: 10,
             children: [
-              for (final loc in kPickupLocations)
+              for (final entry in widget.settings.visibleLocations)
                 _choiceChip(
-                  label: _l.t('location.$loc'),
-                  selected: _location == loc,
+                  label: widget.settings.labelOf(entry, _l, 'location'),
+                  selected: _locationEntry.id == entry.id,
                   color: AppColors.ink,
                   onTap: () {
-                    setState(() => _location = loc);
+                    setState(() => _location = entry.id);
                     _touch();
                   },
                 ),
@@ -823,7 +1027,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
           ),
         ),
-        _roundButton(Icons.add, _quantity < 99, () {
+        _roundButton(Icons.add, _quantity < AppConfig.maxQuantity, () {
           setState(() => _quantity++);
           _touch();
         }),
@@ -949,7 +1153,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              _l.t('success.body', args: {'name': _recipient?.name ?? ''}),
+              _recipient != null
+                  ? _l.t('success.body', args: {'name': _recipient!.name})
+                  : _l.t('success.body.unknown'),
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 20, color: AppColors.inkSoft),
             ),

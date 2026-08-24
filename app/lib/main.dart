@@ -4,11 +4,20 @@ import 'package:flutter/services.dart';
 import 'config.dart';
 import 'l10n.dart';
 import 'screens/delivery_screen.dart';
+import 'settings.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+  // Am Geraet gespeicherte Einstellungen gehen vor; beim ersten Start gilt
+  // das im Build hinterlegte Postfach.
+  final settings = await TerminalSettings.load(
+    defaultMailbox: AppConfig.mailFallback,
+  );
+
   runApp(PostTerminalApp(
+    settings: settings,
     locale: LocaleController(
       LocaleController.fromCode(AppConfig.defaultLanguage),
     ),
@@ -31,8 +40,13 @@ class AppColors {
 
 class PostTerminalApp extends StatelessWidget {
   final LocaleController locale;
+  final TerminalSettings settings;
 
-  const PostTerminalApp({super.key, required this.locale});
+  const PostTerminalApp({
+    super.key,
+    required this.locale,
+    required this.settings,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -61,9 +75,9 @@ class PostTerminalApp extends StatelessWidget {
                   message: 'DEMO',
                   location: BannerLocation.topStart,
                   color: AppColors.alert,
-                  child: DeliveryScreen(locale: locale),
+                  child: DeliveryScreen(locale: locale, settings: settings),
                 )
-              : DeliveryScreen(locale: locale),
+              : DeliveryScreen(locale: locale, settings: settings),
         );
       },
     );

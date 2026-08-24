@@ -21,7 +21,73 @@ Frigemo-Post-ist-da-app/
     └── src/mailer.js           modèles FR/DE, SMTP
 ```
 
-## Serveur
+## Comment l'envoi fonctionne
+
+Le terminal n'a **pas de serveur**. La liste du personnel est un fichier dans
+l'application, et l'envoi passe par l'application e-mail de la tablette :
+
+1. la réception choisit le transporteur, le nombre et le destinataire ;
+2. « Envoyer » ouvre l'application e-mail avec le message déjà rempli —
+   destinataire, boîte commune en copie, objet et texte ;
+3. la réception appuie sur Envoyer dans l'application e-mail.
+
+Aucun mot de passe n'est stocké dans l'application, et aucune infrastructure
+n'est nécessaire. En contrepartie, une boîte e-mail doit être configurée sur
+la tablette, et le terminal ne peut pas savoir si le message est vraiment
+parti — il montre seulement qu'il a été préparé.
+
+Quand aucun nom ne figure sur le colis, « Destinataire inconnu » envoie
+l'annonce uniquement à la boîte commune.
+
+### Liste du personnel
+
+`app/assets/employees.csv` — colonnes `name,email,department,lang`. Modifiable
+directement sur github.com, sans toucher au code ; il faut ensuite reconstruire
+l'APK pour que la tablette voie le changement.
+
+**Les noms livrés sont des exemples et doivent être remplacés.**
+
+La colonne `lang` (`fr` ou `de`) décide de la langue de l'e-mail pour cette
+personne, indépendamment de la langue du terminal.
+
+### Réglages sur la tablette
+
+Un appui long sur le logo, puis le code administrateur (`1234` au départ,
+modifiable), ouvre les réglages. Tout y est enregistré sur la tablette : aucun
+nouvel APK n'est nécessaire pour ces changements.
+
+- **Types d'envoi et lieux de retrait** : masquer, renommer avec la
+  désignation interne du site, ou ajouter des entrées propres à Cressier.
+  Les entrées standard se masquent seulement — elles restent récupérables.
+  Le courrier recommandé est masqué par défaut.
+- **Annonce urgente** : le drapeau qui déclenche `[URGENT]` et le renvoi vers
+  la chambre froide. Réglable aussi sur une entrée propre, pour un secteur
+  réfrigéré interne.
+- **Boîte commune** : voir ci-dessous.
+
+Une désignation interne remplace la traduction dans les deux langues : les
+noms internes ne se traduisent pas.
+
+### Boîte commune
+
+Cette adresse reçoit chaque annonce en copie, et devient le seul destinataire
+quand aucun nom ne figure sur le colis.
+
+**Par défaut il n'y en a aucune**, parce que `paketistda@frigemo.ch` n'existe
+pas encore : sans adresse, rien ne part vers une boîte morte, et l'option
+« Destinataire inconnu » reste masquée.
+
+Elle se saisit dans les réglages de la tablette. La variable `MAIL_FALLBACK`
+(Settings → Secrets and variables → Actions) ne sert que de valeur de départ
+au premier démarrage.
+
+## Serveur (plus utilisé)
+
+Le dossier `server/` vient de la première version, où la recherche et l'envoi
+passaient par une API. Il n'est plus utilisé par le terminal et reste là au cas
+où l'envoi automatique redeviendrait souhaitable.
+
+
 
 ```bash
 cd server
@@ -95,30 +161,29 @@ tablette. Avant de publier une release au sens propre, il faut soit passer le
 dépôt en privé, soit sortir la clé du build (saisie sur le terminal au premier
 démarrage, par exemple).
 
-Avant le premier build, renseigner sous **Settings → Secrets and variables →
-Actions** :
+Le build ne demande aucune configuration obligatoire. Deux variables
+facultatives, sous **Settings → Secrets and variables → Actions** :
 
 | Type | Nom | Contenu |
 |---|---|---|
-| Variable | `API_BASE_URL` | p. ex. `http://10.20.30.40:3000/api` |
-| Variable | `TERMINAL_ID` | p. ex. `cressier-reception-1` |
-| Variable | `DEFAULT_LANGUAGE` | `fr` (facultatif) |
-| Secret | `TERMINAL_API_KEY` | même valeur que `TERMINAL_API_KEY` du serveur |
+| Variable | `MAIL_FALLBACK` | boîte commune, p. ex. `paketistda@frigemo.ch` |
+| Variable | `DEFAULT_LANGUAGE` | `fr` (défaut) ou `de` |
 
-Sans ces valeurs le workflow s'arrête tout de suite avec un message explicite,
-plutôt que de produire un APK pointant sur `localhost`.
+Les anciennes variables `API_BASE_URL`, `TERMINAL_ID` et le secret
+`TERMINAL_API_KEY` ne servent plus depuis la suppression du serveur et peuvent
+être effacées.
 
 ### Contrôle sur les pull requests
 
-Une pull request qui touche `.github/**` déclenche le même workflow, mais il
-s'arrête après `flutter analyze` et le test du script de signature : rien n'est
-construit, rien n'est publié. Une erreur dans le workflow se voit donc sur la
-pull request, et non au moment de poser le tag.
+Une pull request qui touche `.github/**` ou `app/**` déclenche le même
+workflow, mais il s'arrête après `flutter analyze`, les tests et le test du
+script de signature : rien n'est construit, rien n'est publié. Une erreur dans
+le workflow ou dans le code de l'application se voit donc sur la pull request,
+et non au moment de poser le tag.
 
-Ce contrôle ne se déclenche que sur les modifications de `.github/**`. Si la
-gabarit Gradle de Flutter change entre deux pull requests, le problème
-n'apparaîtra qu'au build suivant — un déclencheur hebdomadaire (`schedule`)
-comblerait cet écart si besoin.
+Si le gabarit Gradle de Flutter change sans qu'une pull request ne soit
+ouverte, le problème n'apparaîtra qu'au build suivant — un déclencheur
+hebdomadaire (`schedule`) comblerait cet écart si besoin.
 
 ### Signature
 

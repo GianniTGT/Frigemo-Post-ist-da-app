@@ -1,9 +1,16 @@
-import 'dart:async';
-import 'dart:convert';
+/// Kein Server mehr: die Personalliste liegt als CSV im App-Bundle, und der
+/// Versand laeuft ueber die E-Mail-App des Geraets (mailto:). Dateiname und
+/// Klassennamen stammen noch aus der Server-Zeit -- das Verhalten dahinter
+/// ist vollstaendig lokal.
+library;
 
-import 'package:http/http.dart' as http;
+import 'dart:async';
+
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:url_launcher/url_launcher.dart';
 
 import 'config.dart';
+import 'l10n.dart';
 
 class Employee {
   final String id;
@@ -11,53 +18,54 @@ class Employee {
   final String email;
   final String department;
 
+  /// Sprache der E-Mail an diese Person – unabhaengig von der Terminalsprache.
+  final AppLang lang;
+
   const Employee({
     required this.id,
     required this.name,
     required this.email,
     required this.department,
+    required this.lang,
   });
-
-  factory Employee.fromJson(Map<String, dynamic> json) => Employee(
-        id: json['id'].toString(),
-        name: (json['name'] ?? '').toString(),
-        email: (json['email'] ?? '').toString(),
-        department: (json['department'] ?? '').toString(),
-      );
 }
 
 class DeliveryDraft {
-  final String carrierId;
   final String carrierLabel;
-  final String employeeId;
+
+  /// Null, wenn auf der Sendung kein Name steht. Dann geht die Meldung nur
+  /// an das gemeinsame Postfach.
+  final Employee? recipient;
+
   final int quantity;
-  final String kind;
-  final String location;
+
+  /// Angezeigte Bezeichnungen -- firmenintern benannt, deshalb steht hier
+  /// der fertige Text und keine Kennung.
+  final String kindLabel;
+  final String locationLabel;
+
+  /// Kuehlware und alles, was die Verwaltung ebenso markiert hat.
+  final bool urgent;
+
   final String note;
 
-  const DeliveryDraft({
-    required this.carrierId,
-    required this.carrierLabel,
-    required this.employeeId,
-    required this.quantity,
-    required this.kind,
-    required this.location,
-    required this.note,
-  });
+  /// Sprache, in der gemeldet wird, wenn es keinen Empfaenger gibt.
+  final AppLang terminalLang;
 
-  Map<String, dynamic> toJson() => {
-        'carrierId': carrierId,
-        'carrierLabel': carrierLabel,
-        'employeeId': employeeId,
-        'quantity': quantity,
-        'kind': kind,
-        'location': location,
-        'note': note,
-        'terminalId': AppConfig.terminalId,
-      };
+  const DeliveryDraft({
+    required this.carrierLabel,
+    required this.recipient,
+    required this.quantity,
+    required this.kindLabel,
+    required this.locationLabel,
+    required this.urgent,
+    required this.note,
+    required this.terminalLang,
+  });
 }
 
-enum ApiErrorKind { network, timeout, unauthorized, server, mailFailed }
+/// Ohne Server bleiben genau zwei Dinge, die schiefgehen koennen.
+enum ApiErrorKind { listUnavailable, mailFailed }
 
 class ApiException implements Exception {
   final ApiErrorKind kind;
@@ -67,148 +75,233 @@ class ApiException implements Exception {
 
   /// Übersetzungsschlüssel für die Anzeige.
   String get messageKey => switch (kind) {
-        ApiErrorKind.network => 'error.network',
-        ApiErrorKind.timeout => 'error.timeout',
-        ApiErrorKind.unauthorized => 'error.auth',
+        ApiErrorKind.listUnavailable => 'error.list',
         ApiErrorKind.mailFailed => 'error.mail',
-        ApiErrorKind.server => 'error.server',
       };
 
   @override
   String toString() => 'ApiException($kind, $detail)';
 }
 
+// --- Personalliste ---------------------------------------------------------
+
+/// Diakritika vereinheitlichen, damit "muller" auch "Müller" findet.
+const Map<String, String> _foldings = {
+  'à': 'a', 'á': 'a', 'â': 'a', 'ä': 'a', 'ã': 'a', 'å': 'a',
+  'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
+  'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i',
+  'ò': 'o', 'ó': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o',
+  'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
+  'ç': 'c', 'ñ': 'n', 'ß': 'ss',
+};
+
+String foldForSearch(String value) {
+  final buffer = StringBuffer();
+  for (final char in value.toLowerCase().split('')) {
+    buffer.write(_foldings[char] ?? char);
+  }
+  return buffer.toString();
+}
+
+/// CSV mit Unterstuetzung fuer "Felder, mit Komma" – die Datei wird von Hand
+/// gepflegt, deshalb muss ein Komma im Namen nicht die Liste zerlegen.
+List<List<String>> parseCsv(String text) {
+  final rows = <List<String>>[];
+  var row = <String>[];
+  final field = StringBuffer();
+  var quoted = false;
+
+  for (var i = 0; i < text.length; i++) {
+    final char = text[i];
+    if (quoted) {
+      if (char == '"' && i + 1 < text.length && text[i + 1] == '"') {
+        field.write('"');
+        i++;
+      } else if (char == '"') {
+        quoted = false;
+      } else {
+        field.write(char);
+      }
+    } else if (char == '"') {
+      quoted = true;
+    } else if (char == ',' || char == ';') {
+      row.add(field.toString());
+      field.clear();
+    } else if (char == '\n') {
+      row.add(field.toString());
+      rows.add(row);
+      row = <String>[];
+      field.clear();
+    } else if (char != '\r') {
+      field.write(char);
+    }
+  }
+  if (field.isNotEmpty || row.isNotEmpty) {
+    row.add(field.toString());
+    rows.add(row);
+  }
+  return rows
+      .where((r) => r.any((cell) => cell.trim().isNotEmpty))
+      .toList(growable: false);
+}
+
+/// Liest die gepflegte CSV. Unvollstaendige Zeilen werden uebersprungen,
+/// damit ein Tippfehler nicht die ganze Liste unbrauchbar macht.
+List<Employee> employeesFromCsv(String text) {
+  final rows = parseCsv(text);
+  if (rows.isEmpty) return const [];
+
+  final header = rows.first.map((h) => h.trim().toLowerCase()).toList();
+  int col(String name) => header.indexOf(name);
+
+  final staff = <Employee>[];
+  for (var i = 1; i < rows.length; i++) {
+    final row = rows[i];
+    String cell(String name) {
+      final index = col(name);
+      return index >= 0 && index < row.length ? row[index].trim() : '';
+    }
+
+    final name = cell('name');
+    final email = cell('email');
+    if (name.isEmpty || email.isEmpty) continue;
+
+    staff.add(Employee(
+      id: '$i',
+      name: name,
+      email: email,
+      department: cell('department'),
+      lang: LocaleController.fromCode(cell('lang')),
+    ));
+  }
+  return staff;
+}
+
+/// Sucht wie frueher der Server: alle Begriffe muessen vorkommen, Treffer am
+/// Namensanfang zuerst.
+List<Employee> searchIn(List<Employee> staff, String query, {int limit = 8}) {
+  final terms = foldForSearch(query)
+      .split(RegExp(r'\s+'))
+      .where((term) => term.isNotEmpty)
+      .toList(growable: false);
+  if (terms.isEmpty) return const [];
+
+  final hits = staff.where((e) {
+    final haystack = foldForSearch('${e.name} ${e.department}');
+    return terms.every((term) => haystack.contains(term));
+  }).toList();
+
+  hits.sort((a, b) {
+    final aStarts = foldForSearch(a.name).startsWith(terms.first) ? 0 : 1;
+    final bStarts = foldForSearch(b.name).startsWith(terms.first) ? 0 : 1;
+    return aStarts != bStarts ? aStarts - bStarts : a.name.compareTo(b.name);
+  });
+  return hits.take(limit).toList(growable: false);
+}
+
+// --- E-Mail ----------------------------------------------------------------
+
+String _two(int value) => value.toString().padLeft(2, '0');
+
+String formatStamp(DateTime when) =>
+    '${_two(when.day)}.${_two(when.month)}.${when.year} '
+    '${_two(when.hour)}:${_two(when.minute)}';
+
+/// Baut die mailto-Adresse, die das Terminal an die E-Mail-App uebergibt.
+/// Mit Empfaenger geht die Meldung an die Person, das gemeinsame Postfach
+/// steht in Kopie; ohne Empfaenger geht sie nur an das gemeinsame Postfach.
+Uri composeMail(DeliveryDraft draft, {DateTime? now, String? sharedMailbox}) {
+  final recipient = draft.recipient;
+  final l = L10n(recipient?.lang ?? draft.terminalLang);
+  final urgent = draft.urgent;
+  final shared = (sharedMailbox ?? AppConfig.mailFallback).trim();
+
+  final to = <String>[];
+  final cc = <String>[];
+  if (recipient != null) {
+    to.add(recipient.email);
+    if (shared.isNotEmpty) cc.add(shared);
+  } else if (shared.isNotEmpty) {
+    to.add(shared);
+  }
+  if (to.isEmpty) {
+    throw const ApiException(ApiErrorKind.mailFailed, 'no recipient address');
+  }
+
+  final subject = (urgent ? l.t('mail.urgent.prefix') : '') +
+      l.t(recipient != null ? 'mail.subject' : 'mail.subject.unknown',
+          args: {'carrier': draft.carrierLabel});
+
+  final lines = <String>[
+    recipient != null
+        ? l.t('mail.intro', args: {'name': recipient.name.split(' ').first})
+        : l.t('mail.intro.unknown'),
+    '',
+    '${l.t('mail.carrier')}: ${draft.carrierLabel}',
+    '${l.t('quantity')}: ${draft.quantity}',
+    '${l.t('kind.label')}: ${draft.kindLabel}',
+    '${l.t('location.label')}: ${draft.locationLabel}',
+    if (recipient == null) '${l.t('mail.recipient')}: ${l.t('recipient.unknown')}',
+    if (draft.note.isNotEmpty) '${l.t('mail.note')}: ${draft.note}',
+    '${l.t('mail.time')}: ${formatStamp(now ?? DateTime.now())}',
+    if (urgent) ...['', l.t('mail.urgentNote')],
+    '',
+    l.t('mail.footer'),
+  ];
+
+  // Adressen bleiben unkodiert – E-Mail-Adressen brauchen das nicht, und
+  // manche Mail-Apps stolpern ueber kodierte Kommas.
+  final query = <String>[
+    if (cc.isNotEmpty) 'cc=${cc.join(',')}',
+    'subject=${Uri.encodeComponent(subject)}',
+    'body=${Uri.encodeComponent(lines.join('\n'))}',
+  ];
+  return Uri.parse('mailto:${to.join(',')}?${query.join('&')}');
+}
+
+// --- Dienst ----------------------------------------------------------------
+
 class ApiService {
-  final http.Client _client;
+  List<Employee>? _staff;
 
-  ApiService({http.Client? client}) : _client = client ?? http.Client();
-
-  Map<String, String> get _headers => {
-        'content-type': 'application/json',
-        'accept': 'application/json',
-        if (AppConfig.apiKey.isNotEmpty) 'x-api-key': AppConfig.apiKey,
-        'x-terminal-id': AppConfig.terminalId,
-      };
-
-  Uri _uri(String path, [Map<String, String>? query]) =>
-      Uri.parse('${AppConfig.apiBaseUrl}$path').replace(queryParameters: query);
-
-  Future<bool> health() async {
-    if (AppConfig.demoMode) return true;
+  Future<List<Employee>> staff() async {
+    final cached = _staff;
+    if (cached != null) return cached;
     try {
-      final res = await _client
-          .get(_uri('/health'), headers: _headers)
-          .timeout(const Duration(seconds: 5));
-      return res.statusCode == 200;
-    } catch (_) {
-      return false;
+      final raw = await rootBundle.loadString('assets/employees.csv');
+      final parsed = employeesFromCsv(raw);
+      _staff = parsed;
+      return parsed;
+    } catch (e) {
+      // Fehlt oder zerbricht die Liste, muss der Empfang das sehen -- sonst
+      // sieht es aus, als gaebe es die gesuchte Person nicht.
+      throw ApiException(ApiErrorKind.listUnavailable, e.toString());
     }
   }
 
-  /// Suche läuft serverseitig – das Terminal hält nie die ganze Liste.
   Future<List<Employee>> searchEmployees(String query) async {
     final trimmed = query.trim();
     if (trimmed.length < AppConfig.minSearchChars) return const [];
-    if (AppConfig.demoMode) return _demoSearch(trimmed);
-
-    final res = await _send(() => _client.get(
-          _uri('/employees', {
-            'q': trimmed,
-            'limit': '${AppConfig.maxSearchResults}',
-          }),
-          headers: _headers,
-        ));
-
-    final decoded = jsonDecode(utf8.decode(res.bodyBytes));
-    final list = decoded is Map ? decoded['data'] : decoded;
-    if (list is! List) return const [];
-    return list
-        .whereType<Map<String, dynamic>>()
-        .map(Employee.fromJson)
-        .toList(growable: false);
+    return searchIn(await staff(), trimmed, limit: AppConfig.maxSearchResults);
   }
 
-  Future<void> submitDelivery(DeliveryDraft draft) async {
+  /// Uebergibt die fertige Meldung an die E-Mail-App. Abgeschickt wird sie
+  /// dort von Hand – das Terminal sieht nicht, ob das passiert ist.
+  Future<void> submitDelivery(
+    DeliveryDraft draft, {
+    String? sharedMailbox,
+  }) async {
+    final uri = composeMail(draft, sharedMailbox: sharedMailbox);
+
     if (AppConfig.demoMode) {
-      // Kurze Wartezeit, damit der Sendezustand im UI sichtbar wird.
       await Future<void>.delayed(const Duration(milliseconds: 600));
       return;
     }
 
-    final res = await _send(() => _client.post(
-          _uri('/deliveries'),
-          headers: _headers,
-          body: jsonEncode(draft.toJson()),
-        ));
-
-    // Der Server nimmt die Sendung an (201), auch wenn der Mailversand
-    // scheitert – das muss der Empfang aber wissen.
-    try {
-      final body = jsonDecode(utf8.decode(res.bodyBytes));
-      if (body is Map && body['mailStatus'] == 'failed') {
-        throw const ApiException(ApiErrorKind.mailFailed);
-      }
-    } on ApiException {
-      rethrow;
-    } catch (_) {
-      // Antwort ohne verwertbaren Body: Statuscode war ok, also akzeptieren.
-    }
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication)
+        .catchError((_) => false);
+    if (!opened) throw const ApiException(ApiErrorKind.mailFailed);
   }
 
-  Future<http.Response> _send(Future<http.Response> Function() request) async {
-    final http.Response res;
-    try {
-      res = await request().timeout(AppConfig.requestTimeout);
-    } on TimeoutException {
-      throw const ApiException(ApiErrorKind.timeout);
-    } catch (e) {
-      throw ApiException(ApiErrorKind.network, e.toString());
-    }
-
-    if (res.statusCode == 401 || res.statusCode == 403) {
-      throw const ApiException(ApiErrorKind.unauthorized);
-    }
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw ApiException(ApiErrorKind.server, 'HTTP ${res.statusCode}');
-    }
-    return res;
-  }
-
-  /// Erfundene Namen fuer den Demomodus -- keine echten Mitarbeitenden.
-  static const List<Employee> _demoEmployees = [
-    Employee(id: 'd1', name: 'Hans Muster', email: '', department: 'Technik / Unterhalt'),
-    Employee(id: 'd2', name: 'Claire Dubois', email: '', department: 'Production'),
-    Employee(id: 'd3', name: 'Marc Werlen', email: '', department: 'Facility Management'),
-    Employee(id: 'd4', name: 'Sophie Perret', email: '', department: 'Qualite / QS'),
-    Employee(id: 'd5', name: 'Luca Rossi', email: '', department: 'Logistique'),
-    Employee(id: 'd6', name: 'Anna Kaufmann', email: '', department: 'Administration'),
-    Employee(id: 'd7', name: 'Julien Favre', email: '', department: 'Production'),
-    Employee(id: 'd8', name: 'Nadia Berger', email: '', department: 'Ressources humaines'),
-  ];
-
-  /// Sucht wie der Server: alle Begriffe muessen vorkommen, Treffer am
-  /// Namensanfang zuerst.
-  List<Employee> _demoSearch(String query) {
-    final terms = query
-        .toLowerCase()
-        .split(RegExp(r'\s+'))
-        .where((term) => term.isNotEmpty)
-        .toList(growable: false);
-    if (terms.isEmpty) return const [];
-
-    final hits = _demoEmployees.where((e) {
-      final haystack = '${e.name} ${e.department}'.toLowerCase();
-      return terms.every((term) => haystack.contains(term));
-    }).toList();
-
-    hits.sort((a, b) {
-      final first = terms.first;
-      final aStarts = a.name.toLowerCase().startsWith(first) ? 0 : 1;
-      final bStarts = b.name.toLowerCase().startsWith(first) ? 0 : 1;
-      return aStarts != bStarts ? aStarts - bStarts : a.name.compareTo(b.name);
-    });
-    return hits.take(AppConfig.maxSearchResults).toList(growable: false);
-  }
-
-  void dispose() => _client.close();
+  void dispose() {}
 }
