@@ -261,6 +261,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   void _reset() {
     _idle?.cancel();
     _successTimer?.cancel();
+    // Sonst findet der naechste Fahrer die Sprache des vorigen vor.
+    widget.locale.value = LocaleController.fromCode(AppConfig.defaultLanguage);
     setState(() {
       _carrier = null;
       _recipient = null;
@@ -277,6 +279,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       _searchCtrl.addListener(_onSearchChanged);
       _noteCtrl.clear();
     });
+  }
+
+  void _toggleLanguage() {
+    widget.locale.toggle();
+    _touch();
   }
 
   // --- Verwaltung ------------------------------------------------------
@@ -425,6 +432,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   PreferredSizeWidget _appBar() {
+    // Mit Beschriftung brauchen die beiden Knoepfe so viel Platz, dass auf
+    // schmalen Bildschirmen das Logo darunter verschwindet.
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+
     return AppBar(
       backgroundColor: AppColors.ink,
       foregroundColor: Colors.white,
@@ -484,39 +495,55 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         ],
       ),
       actions: [
-        TextButton.icon(
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        if (wide)
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            ),
+            onPressed: _toggleLanguage,
+            icon: const Icon(Icons.language, size: 24),
+            label: Text(
+              _l.t('lang.switch'),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+            ),
+          )
+        else
+          IconButton(
+            tooltip: _l.t('lang.switch'),
+            color: Colors.white,
+            iconSize: 26,
+            onPressed: _toggleLanguage,
+            icon: const Icon(Icons.language),
           ),
-          onPressed: () {
-            widget.locale.toggle();
-            _touch();
-          },
-          icon: const Icon(Icons.language, size: 24),
-          label: Text(
-            _l.t('lang.switch'),
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-          ),
-        ),
         const SizedBox(width: 8),
         Padding(
           padding: const EdgeInsets.only(right: 16),
-          child: FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            onPressed: _showPhones,
-            icon: const Icon(Icons.phone, size: 22),
-            label: Text(
-              _l.t('phone.button'),
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-            ),
-          ),
+          child: wide
+              ? FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: _showPhones,
+                  icon: const Icon(Icons.phone, size: 22),
+                  label: Text(
+                    _l.t('phone.button'),
+                    style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w700),
+                  ),
+                )
+              : IconButton(
+                  tooltip: _l.t('phone.button'),
+                  color: Colors.white,
+                  iconSize: 26,
+                  onPressed: _showPhones,
+                  icon: const Icon(Icons.phone),
+                ),
         ),
       ],
     );
