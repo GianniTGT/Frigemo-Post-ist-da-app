@@ -3,9 +3,10 @@ name: Terminal-APK prüfen und veröffentlichen
 # Zwei Betriebsarten im selben Job:
 #
 #   Tag 'v*' oder "Run workflow"  -> vollstaendiger Build, Release mit APK.
-#   Pull Request auf .github/**   -> laeuft nur bis `flutter analyze` plus
-#                                    Selbsttest des Signatur-Skripts. Es wird
-#                                    nichts gebaut und nichts veroeffentlicht.
+#   Pull Request auf .github/**   -> laeuft nur bis `flutter analyze`, die
+#   oder app/**                      Tests und den Selbsttest des
+#                                    Signatur-Skripts. Es wird nichts gebaut
+#                                    und nichts veroeffentlicht.
 #
 # Die PR-Variante gibt es, weil eine kaputte Workflow-Datei sonst erst beim
 # Release auffaellt: der erste Lauf dieses Workflows ist mit 0 Jobs
@@ -20,6 +21,7 @@ on:
   pull_request:
     paths:
       - '.github/**'
+      - 'app/**'
   workflow_dispatch:
     inputs:
       version:

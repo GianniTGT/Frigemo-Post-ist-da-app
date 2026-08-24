@@ -110,15 +110,15 @@ plutôt que de produire un APK pointant sur `localhost`.
 
 ### Contrôle sur les pull requests
 
-Une pull request qui touche `.github/**` déclenche le même workflow, mais il
-s'arrête après `flutter analyze` et le test du script de signature : rien n'est
-construit, rien n'est publié. Une erreur dans le workflow se voit donc sur la
-pull request, et non au moment de poser le tag.
+Une pull request qui touche `.github/**` ou `app/**` déclenche le même
+workflow, mais il s'arrête après `flutter analyze`, les tests et le test du
+script de signature : rien n'est construit, rien n'est publié. Une erreur dans
+le workflow ou dans le code de l'application se voit donc sur la pull request,
+et non au moment de poser le tag.
 
-Ce contrôle ne se déclenche que sur les modifications de `.github/**`. Si la
-gabarit Gradle de Flutter change entre deux pull requests, le problème
-n'apparaîtra qu'au build suivant — un déclencheur hebdomadaire (`schedule`)
-comblerait cet écart si besoin.
+Si le gabarit Gradle de Flutter change sans qu'une pull request ne soit
+ouverte, le problème n'apparaîtra qu'au build suivant — un déclencheur
+hebdomadaire (`schedule`) comblerait cet écart si besoin.
 
 ### Signature
 
