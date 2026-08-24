@@ -94,6 +94,7 @@ class ApiService {
       Uri.parse('${AppConfig.apiBaseUrl}$path').replace(queryParameters: query);
 
   Future<bool> health() async {
+    if (AppConfig.demoMode) return true;
     try {
       final res = await _client
           .get(_uri('/health'), headers: _headers)
@@ -108,6 +109,7 @@ class ApiService {
   Future<List<Employee>> searchEmployees(String query) async {
     final trimmed = query.trim();
     if (trimmed.length < AppConfig.minSearchChars) return const [];
+    if (AppConfig.demoMode) return _demoSearch(trimmed);
 
     final res = await _send(() => _client.get(
           _uri('/employees', {
@@ -127,6 +129,12 @@ class ApiService {
   }
 
   Future<void> submitDelivery(DeliveryDraft draft) async {
+    if (AppConfig.demoMode) {
+      // Kurze Wartezeit, damit der Sendezustand im UI sichtbar wird.
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      return;
+    }
+
     final res = await _send(() => _client.post(
           _uri('/deliveries'),
           headers: _headers,
@@ -164,6 +172,42 @@ class ApiService {
       throw ApiException(ApiErrorKind.server, 'HTTP ${res.statusCode}');
     }
     return res;
+  }
+
+  /// Erfundene Namen fuer den Demomodus -- keine echten Mitarbeitenden.
+  static const List<Employee> _demoEmployees = [
+    Employee(id: 'd1', name: 'Hans Muster', email: '', department: 'Technik / Unterhalt'),
+    Employee(id: 'd2', name: 'Claire Dubois', email: '', department: 'Production'),
+    Employee(id: 'd3', name: 'Marc Werlen', email: '', department: 'Facility Management'),
+    Employee(id: 'd4', name: 'Sophie Perret', email: '', department: 'Qualite / QS'),
+    Employee(id: 'd5', name: 'Luca Rossi', email: '', department: 'Logistique'),
+    Employee(id: 'd6', name: 'Anna Kaufmann', email: '', department: 'Administration'),
+    Employee(id: 'd7', name: 'Julien Favre', email: '', department: 'Production'),
+    Employee(id: 'd8', name: 'Nadia Berger', email: '', department: 'Ressources humaines'),
+  ];
+
+  /// Sucht wie der Server: alle Begriffe muessen vorkommen, Treffer am
+  /// Namensanfang zuerst.
+  List<Employee> _demoSearch(String query) {
+    final terms = query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((term) => term.isNotEmpty)
+        .toList(growable: false);
+    if (terms.isEmpty) return const [];
+
+    final hits = _demoEmployees.where((e) {
+      final haystack = '${e.name} ${e.department}'.toLowerCase();
+      return terms.every((term) => haystack.contains(term));
+    }).toList();
+
+    hits.sort((a, b) {
+      final first = terms.first;
+      final aStarts = a.name.toLowerCase().startsWith(first) ? 0 : 1;
+      final bStarts = b.name.toLowerCase().startsWith(first) ? 0 : 1;
+      return aStarts != bStarts ? aStarts - bStarts : a.name.compareTo(b.name);
+    });
+    return hits.take(AppConfig.maxSearchResults).toList(growable: false);
   }
 
   void dispose() => _client.close();
