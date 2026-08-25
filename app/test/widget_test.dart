@@ -261,6 +261,35 @@ void main() {
       expect(restored.kinds.last.urgent, isTrue);
     });
 
+    test('hat ohne Vorgabe keinen Code', () {
+      // 1234 stand im Quelltext und damit im oeffentlichen Repository.
+      // Ohne gesetzten Code verlangt die Verwaltung, zuerst einen zu
+      // vergeben.
+      final settings = TerminalSettings();
+      expect(settings.pin, isEmpty);
+      expect(settings.hasPin, isFalse);
+    });
+
+    test('uebernimmt einen im Build hinterlegten Code', () {
+      final settings = TerminalSettings(pin: '8462');
+      expect(settings.hasPin, isTrue);
+    });
+
+    test('erkennt zu kurze Codes', () {
+      final settings = TerminalSettings();
+      settings.setPin('12');
+      expect(settings.hasPin, isFalse);
+      settings.setPin('8462');
+      expect(settings.hasPin, isTrue);
+    });
+
+    test('vergisst den Code beim Zuruecksetzen', () {
+      final settings = TerminalSettings(pin: '8462');
+      settings.resetToDefaults();
+      // Danach wird beim naechsten Zugriff ein neuer verlangt.
+      expect(settings.hasPin, isFalse);
+    });
+
     test('fragt den Abholort standardmaessig nicht', () {
       // Der Fahrer kann nicht wissen, wohin die Sendung im Werk gehoert.
       expect(TerminalSettings().askLocation, isFalse);
@@ -349,6 +378,7 @@ void main() {
         'step.recipient',
         'step.details',
         'carrier.other',
+        'carrier.other.name',
         'search.hint',
         'search.min',
         'search.none',
@@ -380,6 +410,8 @@ void main() {
         'admin.title',
         'admin.pin.title',
         'admin.pin.wrong',
+        'admin.pin.set',
+        'admin.pin.short',
         'admin.pin.change',
         'admin.kinds',
         'admin.locations',

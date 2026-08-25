@@ -47,6 +47,10 @@ class L10n {
       AppLang.de: 'Angaben zur Sendung',
     },
     'carrier.other': {AppLang.fr: 'Autre', AppLang.de: 'Andere'},
+    'carrier.other.name': {
+      AppLang.fr: 'Nom du transporteur',
+      AppLang.de: 'Name des Transporteurs',
+    },
     'search.hint': {
       AppLang.fr: 'Nom, prénom ou service',
       AppLang.de: 'Name, Vorname oder Abteilung',
@@ -129,6 +133,14 @@ class L10n {
       AppLang.de: 'Administrator-Code',
     },
     'admin.pin.wrong': {AppLang.fr: 'Code incorrect', AppLang.de: 'Falscher Code'},
+    'admin.pin.set': {
+      AppLang.fr: 'Définir le code administrateur',
+      AppLang.de: 'Administrator-Code festlegen',
+    },
+    'admin.pin.short': {
+      AppLang.fr: 'Au moins 4 chiffres',
+      AppLang.de: 'Mindestens 4 Ziffern',
+    },
     'admin.pin.change': {
       AppLang.fr: 'Modifier le code',
       AppLang.de: 'Code ändern',

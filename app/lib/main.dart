@@ -14,6 +14,7 @@ Future<void> main() async {
   // das im Build hinterlegte Postfach.
   final settings = await TerminalSettings.load(
     defaultMailbox: AppConfig.mailFallback,
+    defaultPin: AppConfig.adminPin,
   );
 
   runApp(PostTerminalApp(

@@ -34,6 +34,11 @@ class AppConfig {
   static const int maxQuantity = 10;
 
   /// Formular zurücksetzen, wenn niemand mehr am Terminal steht.
+  /// Startcode der Verwaltung, beim Bauen gesetzt. Leer bedeutet: beim
+  /// ersten Zugriff wird einer festgelegt. Ein fester Wert im Quelltext
+  /// waere in einem oeffentlichen Repository nachlesbar.
+  static const String adminPin = String.fromEnvironment('ADMIN_PIN');
+
   /// Wird beim Bauen gesetzt. Ohne Angabe steht hier 'dev' -- damit auf dem
   /// Geraet immer ablesbar ist, welche Fassung wirklich laeuft.
   static const String appVersion =

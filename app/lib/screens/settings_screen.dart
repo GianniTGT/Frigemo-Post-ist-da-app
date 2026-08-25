@@ -584,12 +584,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final controller = TextEditingController(text: widget.settings.pin);
     final saved = await _textDialog(
       title: _l.t('admin.pin.change'),
-      hint: kDefaultPin,
+      hint: _l.t('admin.pin.short'),
       controller: controller,
       numeric: true,
     );
     controller.dispose();
-    if (saved == null || saved.trim().isEmpty) return;
+    if (saved == null) return;
+
+    // Ein zu kurzer Code waere schnell erraten -- und ein leerer wuerde die
+    // Verwaltung fuer jeden oeffnen, der lange aufs Logo drueckt.
+    if (saved.trim().length < kMinPinLength) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_l.t('admin.pin.short'))),
+      );
+      return;
+    }
     setState(() => widget.settings.setPin(saved.trim()));
   }
 

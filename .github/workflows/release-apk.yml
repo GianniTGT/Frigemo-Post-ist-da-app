@@ -151,6 +151,7 @@ jobs:
           DEFAULT_LANGUAGE: ${{ vars.DEFAULT_LANGUAGE || 'fr' }}
           DEMO_MODE: ${{ steps.version.outputs.demo }}
           APP_VERSION: ${{ steps.version.outputs.tag }}
+          ADMIN_PIN: ${{ secrets.ADMIN_PIN }}
           MAIL_FALLBACK: ${{ vars.MAIL_FALLBACK }}
           FRIGEMO_KEYSTORE: ${{ runner.temp }}/frigemo.keystore
           FRIGEMO_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -160,6 +161,11 @@ jobs:
           # Ohne gesetztes MAIL_FALLBACK bleibt der Standard aus config.dart
           # (leer) gueltig -- ein leeres --dart-define wuerde ihn ueberschreiben.
           extra=()
+          if [ -n "$ADMIN_PIN" ]; then
+            extra+=(--dart-define=ADMIN_PIN="$ADMIN_PIN")
+          else
+            echo "::notice::Kein secrets.ADMIN_PIN gesetzt – die Verwaltung verlangt beim ersten Zugriff, einen Code festzulegen."
+          fi
           if [ -n "$MAIL_FALLBACK" ]; then
             extra+=(--dart-define=MAIL_FALLBACK="$MAIL_FALLBACK")
             echo "Gemeinsames Postfach: $MAIL_FALLBACK"

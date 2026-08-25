@@ -89,7 +89,10 @@ const List<OptionEntry> kDefaultLocations = [
   OptionEntry(id: 'coldroom'),
 ];
 
-const String kDefaultPin = '1234';
+/// Kein fester Startcode: 1234 stand im Quelltext und damit im
+/// oeffentlichen Repository. Ist nichts gesetzt, verlangt die Verwaltung
+/// beim ersten Zugriff, einen Code zu vergeben.
+const int kMinPinLength = 4;
 
 /// Zugang zum Postfach, aus dem die Meldungen verschickt werden. Liegt im
 /// geschuetzten Speicher der App auf dem Geraet, nicht im APK -- ein
@@ -171,7 +174,7 @@ class TerminalSettings extends ChangeNotifier {
     SharedPreferences? store,
   })  : _kinds = List.of(kinds ?? kDefaultKinds),
         _locations = List.of(locations ?? kDefaultLocations),
-        _pin = pin ?? kDefaultPin,
+        _pin = pin ?? '',
         _sharedMailbox = sharedMailbox ?? '',
         _smtp = smtp ?? const SmtpConfig(),
         _askLocation = askLocation,
@@ -190,6 +193,10 @@ class TerminalSettings extends ChangeNotifier {
   List<OptionEntry> get kinds => List.unmodifiable(_kinds);
   List<OptionEntry> get locations => List.unmodifiable(_locations);
   String get pin => _pin;
+
+  /// Solange keiner vergeben ist, kann die Verwaltung nicht geschuetzt
+  /// werden -- dann verlangt sie zuerst einen Code.
+  bool get hasPin => _pin.trim().length >= kMinPinLength;
 
   /// Gemeinsames Postfach. Leer heisst: keins -- dann geht keine Meldung an
   /// eine tote Adresse, und "Empfaenger unbekannt" bleibt ausgeblendet.
@@ -296,7 +303,7 @@ class TerminalSettings extends ChangeNotifier {
   void resetToDefaults() {
     _kinds = List.of(kDefaultKinds);
     _locations = List.of(kDefaultLocations);
-    _pin = kDefaultPin;
+    _pin = '';
     _askLocation = false;
     _persist();
   }
@@ -330,7 +337,7 @@ class TerminalSettings extends ChangeNotifier {
     return TerminalSettings(
       kinds: read('kinds', kDefaultKinds),
       locations: read('locations', kDefaultLocations),
-      pin: (json['pin'] ?? kDefaultPin).toString(),
+      pin: (json['pin'] ?? '').toString(),
       sharedMailbox: (json['sharedMailbox'] ?? '').toString(),
       smtp: json['smtp'] is Map
           ? SmtpConfig.fromJson(Map<String, dynamic>.from(json['smtp'] as Map))
@@ -342,20 +349,31 @@ class TerminalSettings extends ChangeNotifier {
 
   /// Laedt die Einstellungen. Ist nichts gespeichert oder der Eintrag
   /// beschaedigt, gelten die Standardwerte -- das Terminal startet immer.
-  static Future<TerminalSettings> load({String? defaultMailbox}) async {
+  static Future<TerminalSettings> load({
+    String? defaultMailbox,
+    String? defaultPin,
+  }) async {
     try {
       final store = await SharedPreferences.getInstance();
       final raw = store.getString(_key);
       if (raw == null) {
-        return TerminalSettings(sharedMailbox: defaultMailbox, store: store);
+        return TerminalSettings(
+          sharedMailbox: defaultMailbox,
+          pin: defaultPin,
+          store: store,
+        );
       }
       final decoded = jsonDecode(raw);
       if (decoded is! Map) {
-        return TerminalSettings(sharedMailbox: defaultMailbox, store: store);
+        return TerminalSettings(
+          sharedMailbox: defaultMailbox,
+          pin: defaultPin,
+          store: store,
+        );
       }
       return fromJson(Map<String, dynamic>.from(decoded), store: store);
     } catch (_) {
-      return TerminalSettings(sharedMailbox: defaultMailbox);
+      return TerminalSettings(sharedMailbox: defaultMailbox, pin: defaultPin);
     }
   }
 
