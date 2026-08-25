@@ -55,6 +55,10 @@ class L10n {
       AppLang.fr: 'Nom, prénom ou service',
       AppLang.de: 'Name, Vorname oder Abteilung',
     },
+    'search.where': {
+      AppLang.fr: 'Sur le bon de livraison, le nom figure sous « Votre référence » ou « Ihr Zeichen ».',
+      AppLang.de: 'Auf dem Lieferschein steht der Name unter „Ihr Zeichen" oder „Votre référence".',
+    },
     'search.min': {
       AppLang.fr: 'Saisir au moins 2 lettres',
       AppLang.de: 'Mindestens 2 Zeichen eingeben',
@@ -238,6 +242,14 @@ class L10n {
       AppLang.de: 'Telefonkontakte',
     },
     'phone.button': {AppLang.fr: 'Téléphone', AppLang.de: 'Telefon'},
+    'recipient.free': {
+      AppLang.fr: 'Utiliser « {name} » quand même',
+      AppLang.de: '„{name}" trotzdem verwenden',
+    },
+    'recipient.free.hint': {
+      AppLang.fr: 'L\u2019annonce part à la boîte commune, avec ce nom.',
+      AppLang.de: 'Die Meldung geht mit diesem Namen an das gemeinsame Postfach.',
+    },
     'recipient.unknown': {
       AppLang.fr: 'Destinataire inconnu',
       AppLang.de: 'Empfänger unbekannt',
@@ -257,6 +269,14 @@ class L10n {
     'mail.subject.unknown': {
       AppLang.fr: 'Livraison sans destinataire – {carrier}',
       AppLang.de: 'Lieferung ohne Empfänger – {carrier}',
+    },
+    'mail.subject.name': {
+      AppLang.fr: 'Livraison pour {name} – {carrier}',
+      AppLang.de: 'Lieferung für {name} – {carrier}',
+    },
+    'mail.intro.name': {
+      AppLang.fr: 'Une livraison au nom de {name} est arrivée à la réception de Cressier. Cette personne ne figure pas dans la liste du terminal – merci de transmettre.',
+      AppLang.de: 'Am Empfang Cressier ist eine Lieferung auf den Namen {name} eingetroffen. Diese Person steht nicht in der Liste des Terminals – bitte weiterleiten.',
     },
     'mail.urgent.prefix': {
       AppLang.fr: '[URGENT] ',

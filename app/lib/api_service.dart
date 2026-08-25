@@ -35,9 +35,15 @@ class Employee {
 class DeliveryDraft {
   final String carrierLabel;
 
-  /// Null, wenn auf der Sendung kein Name steht. Dann geht die Meldung nur
-  /// an das gemeinsame Postfach.
+  /// Null, wenn die Person nicht in der Liste steht oder auf der Sendung
+  /// gar kein Name steht. Dann geht die Meldung an das gemeinsame Postfach.
   final Employee? recipient;
+
+  /// Auf der Sendung steht ein Name, der nicht in der Liste vorkommt --
+  /// neue Mitarbeitende, Temporaere, Externe, oder schlicht ein Tippfehler
+  /// auf dem Etikett. Der Name ist trotzdem das Nuetzlichste an der Meldung
+  /// und darf nicht verlorengehen.
+  final String? recipientName;
 
   final int quantity;
 
@@ -60,6 +66,7 @@ class DeliveryDraft {
   const DeliveryDraft({
     required this.carrierLabel,
     required this.recipient,
+    this.recipientName,
     required this.quantity,
     required this.kindLabel,
     required this.locationLabel,
@@ -256,15 +263,29 @@ MailContent composeDelivery(
     throw const ApiException(ApiErrorKind.notConfigured, 'no recipient address');
   }
 
-  final subject = (urgent ? l.t('mail.urgent.prefix') : '') +
-      l.t(recipient != null ? 'mail.subject' : 'mail.subject.unknown',
-          args: {'carrier': draft.carrierLabel});
+  final named = draft.recipientName?.trim() ?? '';
+
+  final String subject;
+  if (recipient != null) {
+    subject = (urgent ? l.t('mail.urgent.prefix') : '') +
+        l.t('mail.subject', args: {'carrier': draft.carrierLabel});
+  } else if (named.isNotEmpty) {
+    subject = (urgent ? l.t('mail.urgent.prefix') : '') +
+        l.t('mail.subject.name',
+            args: {'carrier': draft.carrierLabel, 'name': named});
+  } else {
+    subject = (urgent ? l.t('mail.urgent.prefix') : '') +
+        l.t('mail.subject.unknown', args: {'carrier': draft.carrierLabel});
+  }
 
   final location = draft.locationLabel;
   final lines = <String>[
-    recipient != null
-        ? l.t('mail.intro', args: {'name': recipient.name.split(' ').first})
-        : l.t('mail.intro.unknown'),
+    if (recipient != null)
+      l.t('mail.intro', args: {'name': recipient.name.split(' ').first})
+    else if (named.isNotEmpty)
+      l.t('mail.intro.name', args: {'name': named})
+    else
+      l.t('mail.intro.unknown'),
     '',
     '${l.t('mail.carrier')}: ${draft.carrierLabel}',
     '${l.t('quantity')}: ${draft.quantity}',
@@ -272,7 +293,8 @@ MailContent composeDelivery(
     if (location != null && location.isNotEmpty)
       '${l.t('location.label')}: $location',
     if (recipient == null)
-      '${l.t('mail.recipient')}: ${l.t('recipient.unknown')}',
+      '${l.t('mail.recipient')}: '
+          '${named.isNotEmpty ? named : l.t('recipient.unknown')}',
     if (draft.note.isNotEmpty) '${l.t('mail.note')}: ${draft.note}',
     '${l.t('mail.time')}: ${formatStamp(now ?? DateTime.now())}',
     if (urgent) ...['', l.t('mail.urgentNote')],
