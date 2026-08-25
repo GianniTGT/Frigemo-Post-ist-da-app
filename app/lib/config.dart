@@ -34,6 +34,11 @@ class AppConfig {
   static const int maxQuantity = 10;
 
   /// Formular zurücksetzen, wenn niemand mehr am Terminal steht.
+  /// Wird beim Bauen gesetzt. Ohne Angabe steht hier 'dev' -- damit auf dem
+  /// Geraet immer ablesbar ist, welche Fassung wirklich laeuft.
+  static const String appVersion =
+      String.fromEnvironment('APP_VERSION', defaultValue: 'dev');
+
   static const Duration idleTimeout = Duration(seconds: 90);
 
   /// Wie lange die Erfolgsmeldung stehen bleibt.

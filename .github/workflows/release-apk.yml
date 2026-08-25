@@ -150,6 +150,7 @@ jobs:
         env:
           DEFAULT_LANGUAGE: ${{ vars.DEFAULT_LANGUAGE || 'fr' }}
           DEMO_MODE: ${{ steps.version.outputs.demo }}
+          APP_VERSION: ${{ steps.version.outputs.tag }}
           MAIL_FALLBACK: ${{ vars.MAIL_FALLBACK }}
           FRIGEMO_KEYSTORE: ${{ runner.temp }}/frigemo.keystore
           FRIGEMO_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -169,6 +170,7 @@ jobs:
           flutter build apk --release \
             --dart-define=DEFAULT_LANGUAGE="$DEFAULT_LANGUAGE" \
             --dart-define=DEMO_MODE="$DEMO_MODE" \
+            --dart-define=APP_VERSION="$APP_VERSION" \
             "${extra[@]}"
 
       # Ein unbemerkt debug-signiertes Release wäre der teure Fehler: die

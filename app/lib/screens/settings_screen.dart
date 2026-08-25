@@ -6,6 +6,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../api_service.dart';
+import '../config.dart';
 import '../l10n.dart';
 import '../main.dart' show AppColors;
 import '../settings.dart';
@@ -145,6 +146,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
             const SizedBox(height: 20),
             _pinCard(),
+            const SizedBox(height: 24),
+            // Damit im Zweifel ablesbar ist, welche Fassung auf dem Geraet
+            // wirklich laeuft -- eine gescheiterte Aktualisierung sieht man
+            // dem Bildschirm sonst nicht an.
+            Center(
+              child: Text(
+                'Version ${AppConfig.appVersion}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.inkSoft,
+                ),
+              ),
+            ),
           ],
         ),
       ),
