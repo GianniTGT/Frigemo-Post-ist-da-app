@@ -28,6 +28,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   final ApiService _api = ApiService();
   final TextEditingController _searchCtrl = TextEditingController();
   final TextEditingController _noteCtrl = TextEditingController();
+
+  /// Steht "Andere" auf der Kachel, muss der Fahrer sagen koennen, von wem
+  /// die Sendung ist -- sonst meldet das Terminal nur "Andere".
+  final TextEditingController _otherCarrierCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
 
   CarrierOption? _carrier;
@@ -67,13 +71,31 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       _current(widget.settings.visibleLocations, _location);
   bool get _ready =>
       _carrier != null &&
+      _carrierLabel.isNotEmpty &&
       (_recipient != null || _unknownRecipient) &&
       !_submitting;
+
+  /// Bei "Andere" zaehlt, was der Fahrer eingetippt hat. Bleibt es leer,
+  /// bleibt der Sendeknopf gesperrt -- eine Meldung "von Andere" hilft am
+  /// Empfang niemandem weiter.
+  String get _carrierLabel {
+    final carrier = _carrier;
+    if (carrier == null) return '';
+    if (carrier.id != 'other') return carrier.label;
+    return _otherCarrierCtrl.text.trim();
+  }
+
+  void _onOtherCarrierChanged() {
+    _touch();
+    setState(() {});
+  }
 
   @override
   void initState() {
     super.initState();
     _searchCtrl.addListener(_onSearchChanged);
+    // Der Sendeknopf haengt am Inhalt dieses Feldes.
+    _otherCarrierCtrl.addListener(_onOtherCarrierChanged);
   }
 
   @override
@@ -83,6 +105,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     _successTimer?.cancel();
     _searchCtrl.dispose();
     _noteCtrl.dispose();
+    _otherCarrierCtrl.removeListener(_onOtherCarrierChanged);
+    _otherCarrierCtrl.dispose();
     _searchFocus.dispose();
     _api.dispose();
     super.dispose();
@@ -184,8 +208,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     _idle?.cancel();
 
     final draft = DeliveryDraft(
-      carrierLabel:
-          _carrier!.id == 'other' ? _l.t('carrier.other') : _carrier!.label,
+      carrierLabel: _carrierLabel,
       recipient: _recipient,
       quantity: _quantity,
       kindLabel: widget.settings.labelOf(_kindEntry, _l, 'kind'),
@@ -283,6 +306,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       _searchCtrl.clear();
       _searchCtrl.addListener(_onSearchChanged);
       _noteCtrl.clear();
+      _otherCarrierCtrl.removeListener(_onOtherCarrierChanged);
+      _otherCarrierCtrl.clear();
+      _otherCarrierCtrl.addListener(_onOtherCarrierChanged);
     });
   }
 
@@ -295,10 +321,22 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
   Future<void> _openSettings() async {
     _idle?.cancel();
-    final entered = await _askPin();
+
+    // Ohne vergebenen Code laesst sich die Verwaltung nicht schuetzen --
+    // dann wird zuerst einer festgelegt.
+    final settingUp = !widget.settings.hasPin;
+    final entered = await _askPin(settingUp: settingUp);
     if (!mounted || entered == null) return;
 
-    if (entered.trim() != widget.settings.pin) {
+    if (settingUp) {
+      if (entered.trim().length < kMinPinLength) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_l.t('admin.pin.short'))),
+        );
+        return;
+      }
+      widget.settings.setPin(entered.trim());
+    } else if (entered.trim() != widget.settings.pin) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_l.t('admin.pin.wrong'))),
       );
@@ -317,14 +355,14 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     if (mounted) _reset();
   }
 
-  Future<String?> _askPin() {
+  Future<String?> _askPin({bool settingUp = false}) {
     final controller = TextEditingController();
     return showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.card,
         title: Text(
-          _l.t('admin.pin.title'),
+          _l.t(settingUp ? 'admin.pin.set' : 'admin.pin.title'),
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         content: SizedBox(
@@ -336,7 +374,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 26, letterSpacing: 8),
-            decoration: const InputDecoration(border: OutlineInputBorder()),
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              helperText: settingUp ? _l.t('admin.pin.short') : null,
+            ),
             onSubmitted: (value) => Navigator.pop(dialogContext, value),
           ),
         ),
@@ -564,6 +605,25 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       _stepLabel('1', _l.t('step.carrier')),
       const SizedBox(height: 14),
       _carrierGrid(),
+      if (_carrier?.id == 'other') ...[
+        const SizedBox(height: 14),
+        TextField(
+          controller: _otherCarrierCtrl,
+          textCapitalization: TextCapitalization.words,
+          style: const TextStyle(fontSize: 19),
+          decoration: InputDecoration(
+            labelText: _l.t('carrier.other.name'),
+            labelStyle: const TextStyle(fontSize: 17),
+            filled: true,
+            fillColor: AppColors.card,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+          ),
+        ),
+      ],
       const SizedBox(height: 32),
       _stepLabel('2', _l.t('step.recipient')),
       const SizedBox(height: 14),

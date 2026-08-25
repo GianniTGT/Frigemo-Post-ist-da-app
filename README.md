@@ -69,8 +69,12 @@ personne, indépendamment de la langue du terminal.
 
 ### Réglages sur la tablette
 
-Un appui long sur le logo, puis le code administrateur (`1234` au départ,
-modifiable), ouvre les réglages. Tout y est enregistré sur la tablette : aucun
+Un appui long sur le logo, puis le code administrateur, ouvre les réglages.
+
+**Il n'y a pas de code par défaut** — un code fixe dans le code source serait
+lisible dans ce dépôt public. Au premier accès, le terminal demande d'en
+définir un (4 chiffres au moins). Pour livrer une tablette déjà protégée,
+déposer le secret `ADMIN_PIN` : il sert alors de code de départ. Tout y est enregistré sur la tablette : aucun
 nouvel APK n'est nécessaire pour ces changements.
 
 - **Types d'envoi et lieux de retrait** : masquer, renommer avec la
