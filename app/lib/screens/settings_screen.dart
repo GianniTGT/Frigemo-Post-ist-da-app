@@ -5,6 +5,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../api_service.dart';
 import '../l10n.dart';
 import '../main.dart' show AppColors;
 import '../settings.dart';
@@ -26,12 +27,36 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _mailbox =
       TextEditingController(text: widget.settings.sharedMailbox);
+  late final TextEditingController _host =
+      TextEditingController(text: widget.settings.smtp.host);
+  late final TextEditingController _port =
+      TextEditingController(text: '${widget.settings.smtp.port}');
+  late final TextEditingController _user =
+      TextEditingController(text: widget.settings.smtp.user);
+  late final TextEditingController _password =
+      TextEditingController(text: widget.settings.smtp.password);
+  late final TextEditingController _from =
+      TextEditingController(text: widget.settings.smtp.fromAddress);
+  late final TextEditingController _fromName =
+      TextEditingController(text: widget.settings.smtp.fromName);
+
+  bool _testing = false;
 
   L10n get _l => L10n(widget.locale.value);
 
   @override
   void dispose() {
-    _mailbox.dispose();
+    for (final controller in [
+      _mailbox,
+      _host,
+      _port,
+      _user,
+      _password,
+      _from,
+      _fromName,
+    ]) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -85,7 +110,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
+            _smtpCard(),
+            const SizedBox(height: 20),
             _mailboxCard(),
+            const SizedBox(height: 20),
+            _locationCard(),
             const SizedBox(height: 20),
             if (wide)
               // Auf dem Tablet quer nebeneinander -- so bleibt beides ohne
@@ -156,6 +185,144 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   setState(() => widget.settings.setSharedMailbox(value)),
             ),
           ],
+        ),
+      );
+
+  Widget _field(
+    String label,
+    TextEditingController controller, {
+    bool obscure = false,
+    bool numeric = false,
+    void Function(String)? onChanged,
+  }) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: TextField(
+          controller: controller,
+          obscureText: obscure,
+          autocorrect: false,
+          keyboardType: numeric
+              ? TextInputType.number
+              : TextInputType.emailAddress,
+          style: const TextStyle(fontSize: 18),
+          decoration: InputDecoration(
+            labelText: label,
+            border: const OutlineInputBorder(),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          ),
+          onChanged: onChanged,
+        ),
+      );
+
+  /// Zugangsdaten liegen im geschuetzten Speicher der App, nicht im APK.
+  Widget _smtpCard() => _card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _heading(_l.t('admin.smtp')),
+            const SizedBox(height: 6),
+            Text(
+              _l.t('admin.smtp.hint'),
+              style: const TextStyle(fontSize: 15, color: AppColors.inkSoft),
+            ),
+            const SizedBox(height: 14),
+            _field(_l.t('admin.smtp.host'), _host,
+                onChanged: (v) =>
+                    widget.settings.updateSmtp((s) => s.copyWith(host: v))),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 140,
+                  child: _field(
+                    _l.t('admin.smtp.port'),
+                    _port,
+                    numeric: true,
+                    onChanged: (v) => widget.settings.updateSmtp(
+                      (s) => s.copyWith(port: int.tryParse(v) ?? s.port),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      _l.t('admin.smtp.ssl'),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    value: widget.settings.smtp.ssl,
+                    onChanged: (v) => setState(() => widget.settings
+                        .updateSmtp((s) => s.copyWith(ssl: v))),
+                  ),
+                ),
+              ],
+            ),
+            _field(_l.t('admin.smtp.user'), _user,
+                onChanged: (v) =>
+                    widget.settings.updateSmtp((s) => s.copyWith(user: v))),
+            _field(_l.t('admin.smtp.password'), _password,
+                obscure: true,
+                onChanged: (v) => widget.settings
+                    .updateSmtp((s) => s.copyWith(password: v))),
+            _field(_l.t('admin.smtp.from'), _from,
+                onChanged: (v) => widget.settings
+                    .updateSmtp((s) => s.copyWith(fromAddress: v))),
+            _field(_l.t('admin.smtp.fromname'), _fromName,
+                onChanged: (v) => widget.settings
+                    .updateSmtp((s) => s.copyWith(fromName: v))),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _l.t('admin.smtp.test.target'),
+                    style: const TextStyle(
+                        fontSize: 14, color: AppColors.inkSoft),
+                  ),
+                ),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
+                  ),
+                  onPressed: _testing ? null : _sendTest,
+                  icon: _testing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.outgoing_mail, size: 22),
+                  label: Text(
+                    _l.t('admin.smtp.test'),
+                    style: const TextStyle(fontSize: 17),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+  Widget _locationCard() => _card(
+        child: SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+            _l.t('admin.location.ask'),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+          ),
+          subtitle: Text(
+            _l.t('admin.location.hint'),
+            style: const TextStyle(fontSize: 15, color: AppColors.inkSoft),
+          ),
+          value: widget.settings.askLocation,
+          onChanged: (value) =>
+              setState(() => widget.settings.setAskLocation(value)),
         ),
       );
 
@@ -367,6 +534,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     controller.dispose();
     if (saved == null || saved.trim().isEmpty) return;
     setState(() => widget.settings.setPin(saved.trim()));
+  }
+
+  /// Prueft den Zugang, ohne dass jemand eine echte Sendung erfinden muss.
+  Future<void> _sendTest() async {
+    setState(() => _testing = true);
+    final smtp = widget.settings.smtp;
+    final messenger = ScaffoldMessenger.of(context);
+
+    String result;
+    try {
+      await ApiService().sendMail(
+        MailContent(
+          to: [smtp.fromAddress.trim()],
+          cc: const [],
+          subject: '${_l.t('app.title')} – ${_l.t('admin.smtp.test')}',
+          body: _l.t('admin.smtp.test.ok'),
+        ),
+        smtp,
+      );
+      result = _l.t('admin.smtp.test.ok');
+    } on ApiException catch (e) {
+      result = '${_l.t(e.messageKey)}\n${e.detail ?? ''}'.trim();
+    }
+
+    if (!mounted) return;
+    setState(() => _testing = false);
+    messenger.showSnackBar(
+      SnackBar(content: Text(result), duration: const Duration(seconds: 6)),
+    );
   }
 
   Future<void> _confirmReset() async {

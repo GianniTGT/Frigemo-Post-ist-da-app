@@ -189,15 +189,20 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       recipient: _recipient,
       quantity: _quantity,
       kindLabel: widget.settings.labelOf(_kindEntry, _l, 'kind'),
-      locationLabel: widget.settings.labelOf(_locationEntry, _l, 'location'),
+      locationLabel: widget.settings.askLocation
+          ? widget.settings.labelOf(_locationEntry, _l, 'location')
+          : null,
       urgent: _kindEntry.urgent,
       note: _noteCtrl.text.trim(),
       terminalLang: widget.locale.value,
     );
 
     try {
-      await _api.submitDelivery(draft,
-          sharedMailbox: widget.settings.sharedMailbox);
+      await _api.submitDelivery(
+        draft,
+        smtp: widget.settings.smtp,
+        sharedMailbox: widget.settings.sharedMailbox,
+      );
       if (!mounted) return;
       setState(() {
         _submitting = false;
@@ -261,6 +266,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   void _reset() {
     _idle?.cancel();
     _successTimer?.cancel();
+    // Sonst findet der naechste Fahrer die Sprache des vorigen vor.
+    widget.locale.value = LocaleController.fromCode(AppConfig.defaultLanguage);
     setState(() {
       _carrier = null;
       _recipient = null;
@@ -277,6 +284,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       _searchCtrl.addListener(_onSearchChanged);
       _noteCtrl.clear();
     });
+  }
+
+  void _toggleLanguage() {
+    widget.locale.toggle();
+    _touch();
   }
 
   // --- Verwaltung ------------------------------------------------------
@@ -425,6 +437,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   PreferredSizeWidget _appBar() {
+    // Mit Beschriftung brauchen die beiden Knoepfe so viel Platz, dass auf
+    // schmalen Bildschirmen das Logo darunter verschwindet.
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+
     return AppBar(
       backgroundColor: AppColors.ink,
       foregroundColor: Colors.white,
@@ -484,39 +500,55 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         ],
       ),
       actions: [
-        TextButton.icon(
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        if (wide)
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            ),
+            onPressed: _toggleLanguage,
+            icon: const Icon(Icons.language, size: 24),
+            label: Text(
+              _l.t('lang.switch'),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+            ),
+          )
+        else
+          IconButton(
+            tooltip: _l.t('lang.switch'),
+            color: Colors.white,
+            iconSize: 26,
+            onPressed: _toggleLanguage,
+            icon: const Icon(Icons.language),
           ),
-          onPressed: () {
-            widget.locale.toggle();
-            _touch();
-          },
-          icon: const Icon(Icons.language, size: 24),
-          label: Text(
-            _l.t('lang.switch'),
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-          ),
-        ),
         const SizedBox(width: 8),
         Padding(
           padding: const EdgeInsets.only(right: 16),
-          child: FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            onPressed: _showPhones,
-            icon: const Icon(Icons.phone, size: 22),
-            label: Text(
-              _l.t('phone.button'),
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-            ),
-          ),
+          child: wide
+              ? FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: _showPhones,
+                  icon: const Icon(Icons.phone, size: 22),
+                  label: Text(
+                    _l.t('phone.button'),
+                    style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w700),
+                  ),
+                )
+              : IconButton(
+                  tooltip: _l.t('phone.button'),
+                  color: Colors.white,
+                  iconSize: 26,
+                  onPressed: _showPhones,
+                  icon: const Icon(Icons.phone),
+                ),
         ),
       ],
     );
@@ -953,7 +985,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                       _kind = entry.id;
                       // Kuehlware gehoert in den Kuehlraum -- sofern es ihn
                       // in den Einstellungen noch gibt.
-                      if (entry.urgent) {
+                      if (entry.urgent && widget.settings.askLocation) {
                         final cold = widget.settings.visibleLocations
                             .where((e) => e.id == 'coldroom');
                         if (cold.isNotEmpty) _location = cold.first.id;
@@ -968,28 +1000,32 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             const SizedBox(height: 12),
             _hintRow(Icons.ac_unit, _l.t('chilled.warning'), AppColors.alert),
           ],
-          const SizedBox(height: 22),
-          Text(
-            _l.t('location.label'),
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              for (final entry in widget.settings.visibleLocations)
-                _choiceChip(
-                  label: widget.settings.labelOf(entry, _l, 'location'),
-                  selected: _locationEntry.id == entry.id,
-                  color: AppColors.ink,
-                  onTap: () {
-                    setState(() => _location = entry.id);
-                    _touch();
-                  },
-                ),
-            ],
-          ),
+          // Der Fahrer weiss nicht, wohin die Sendung im Werk gehoert.
+          // Standardmaessig fragt das Terminal ihn deshalb nicht danach.
+          if (widget.settings.askLocation) ...[
+            const SizedBox(height: 22),
+            Text(
+              _l.t('location.label'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final entry in widget.settings.visibleLocations)
+                  _choiceChip(
+                    label: widget.settings.labelOf(entry, _l, 'location'),
+                    selected: _locationEntry.id == entry.id,
+                    color: AppColors.ink,
+                    onTap: () {
+                      setState(() => _location = entry.id);
+                      _touch();
+                    },
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 22),
           TextField(
             controller: _noteCtrl,

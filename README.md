@@ -23,21 +23,32 @@ Frigemo-Post-ist-da-app/
 
 ## Comment l'envoi fonctionne
 
+**C'est le chauffeur qui utilise le terminal**, pas la réception. Tout découle
+de là : il ne doit voir aucune autre application, il ne doit rien décider qu'il
+ne puisse savoir, et l'annonce doit partir sans qu'il ait à confirmer ailleurs.
+
 Le terminal n'a **pas de serveur**. La liste du personnel est un fichier dans
-l'application, et l'envoi passe par l'application e-mail de la tablette :
+l'application, et le terminal **envoie lui-même** par SMTP :
 
-1. la réception choisit le transporteur, le nombre et le destinataire ;
-2. « Envoyer » ouvre l'application e-mail avec le message déjà rempli —
-   destinataire, boîte commune en copie, objet et texte ;
-3. la réception appuie sur Envoyer dans l'application e-mail.
+1. le chauffeur choisit le transporteur, le nombre et le destinataire ;
+2. « Envoyer » expédie l'annonce directement ;
+3. l'écran de confirmation n'apparaît qu'une fois le serveur de messagerie
+   ayant accepté l'envoi.
 
-Aucun mot de passe n'est stocké dans l'application, et aucune infrastructure
-n'est nécessaire. En contrepartie, une boîte e-mail doit être configurée sur
-la tablette, et le terminal ne peut pas savoir si le message est vraiment
-parti — il montre seulement qu'il a été préparé.
+Le chauffeur ne voit jamais de boîte de réception, et la confirmation dit la
+vérité — contrairement à une ouverture d'application e-mail, où un envoi
+abandonné passerait pour réussi.
+
+Les identifiants sont saisis dans les réglages et restent dans la mémoire
+privée de l'application sur la tablette ; **ils ne sont pas dans l'APK**.
 
 Quand aucun nom ne figure sur le colis, « Destinataire inconnu » envoie
 l'annonce uniquement à la boîte commune.
+
+### Lieu de retrait
+
+Désactivé par défaut : le chauffeur ne peut pas savoir où le colis doit aller
+dans l'usine. Réactivable dans les réglages si le site en a l'usage.
 
 ### Liste du personnel
 

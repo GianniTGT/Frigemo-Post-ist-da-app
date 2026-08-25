@@ -91,23 +91,98 @@ const List<OptionEntry> kDefaultLocations = [
 
 const String kDefaultPin = '1234';
 
+/// Zugang zum Postfach, aus dem die Meldungen verschickt werden. Liegt im
+/// geschuetzten Speicher der App auf dem Geraet, nicht im APK -- ein
+/// heruntergeladenes APK enthaelt kein Passwort.
+class SmtpConfig {
+  final String host;
+  final int port;
+  final String user;
+  final String password;
+
+  /// true = SMTPS (meist Port 465), false = STARTTLS (meist 587).
+  final bool ssl;
+
+  final String fromAddress;
+  final String fromName;
+
+  const SmtpConfig({
+    this.host = '',
+    this.port = 587,
+    this.user = '',
+    this.password = '',
+    this.ssl = false,
+    this.fromAddress = '',
+    this.fromName = '',
+  });
+
+  /// Ohne Server und Absender kann nichts rausgehen. Das Passwort ist
+  /// bewusst nicht Bedingung: interne Relais verlangen oft keines.
+  bool get isComplete => host.trim().isNotEmpty && fromAddress.trim().isNotEmpty;
+
+  SmtpConfig copyWith({
+    String? host,
+    int? port,
+    String? user,
+    String? password,
+    bool? ssl,
+    String? fromAddress,
+    String? fromName,
+  }) =>
+      SmtpConfig(
+        host: host ?? this.host,
+        port: port ?? this.port,
+        user: user ?? this.user,
+        password: password ?? this.password,
+        ssl: ssl ?? this.ssl,
+        fromAddress: fromAddress ?? this.fromAddress,
+        fromName: fromName ?? this.fromName,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'host': host,
+        'port': port,
+        'user': user,
+        'password': password,
+        'ssl': ssl,
+        'fromAddress': fromAddress,
+        'fromName': fromName,
+      };
+
+  static SmtpConfig fromJson(Map<String, dynamic> json) => SmtpConfig(
+        host: (json['host'] ?? '').toString(),
+        port: int.tryParse('${json['port']}') ?? 587,
+        user: (json['user'] ?? '').toString(),
+        password: (json['password'] ?? '').toString(),
+        ssl: json['ssl'] == true,
+        fromAddress: (json['fromAddress'] ?? '').toString(),
+        fromName: (json['fromName'] ?? '').toString(),
+      );
+}
+
 class TerminalSettings extends ChangeNotifier {
   TerminalSettings({
     List<OptionEntry>? kinds,
     List<OptionEntry>? locations,
     String? pin,
     String? sharedMailbox,
+    SmtpConfig? smtp,
+    bool askLocation = false,
     SharedPreferences? store,
   })  : _kinds = List.of(kinds ?? kDefaultKinds),
         _locations = List.of(locations ?? kDefaultLocations),
         _pin = pin ?? kDefaultPin,
         _sharedMailbox = sharedMailbox ?? '',
+        _smtp = smtp ?? const SmtpConfig(),
+        _askLocation = askLocation,
         _store = store;
 
   List<OptionEntry> _kinds;
   List<OptionEntry> _locations;
   String _pin;
   String _sharedMailbox;
+  SmtpConfig _smtp;
+  bool _askLocation;
   final SharedPreferences? _store;
 
   static const String _key = 'terminal.settings.v1';
@@ -120,6 +195,13 @@ class TerminalSettings extends ChangeNotifier {
   /// eine tote Adresse, und "Empfaenger unbekannt" bleibt ausgeblendet.
   String get sharedMailbox => _sharedMailbox.trim();
   bool get hasSharedMailbox => sharedMailbox.isNotEmpty;
+
+  SmtpConfig get smtp => _smtp;
+
+  /// Der Fahrer weiss nicht, wo die Sendung im Werk hingehoert -- deshalb
+  /// wird der Abholort standardmaessig nicht gefragt. Wer ihn doch braucht,
+  /// schaltet ihn in der Verwaltung ein.
+  bool get askLocation => _askLocation;
 
   List<OptionEntry> get visibleKinds =>
       _kinds.where((e) => e.visible).toList(growable: false);
@@ -198,10 +280,24 @@ class TerminalSettings extends ChangeNotifier {
     _persist();
   }
 
+  void updateSmtp(SmtpConfig Function(SmtpConfig) change) {
+    _smtp = change(_smtp);
+    _persist();
+  }
+
+  void setAskLocation(bool value) {
+    _askLocation = value;
+    _persist();
+  }
+
+  /// Setzt die Auswahl zurueck. Der Versandzugang bleibt erhalten -- sonst
+  /// stuende das Terminal nach einem Fehlgriff stumm, bis jemand die
+  /// Zugangsdaten erneut heraussucht.
   void resetToDefaults() {
     _kinds = List.of(kDefaultKinds);
     _locations = List.of(kDefaultLocations);
     _pin = kDefaultPin;
+    _askLocation = false;
     _persist();
   }
 
@@ -212,6 +308,8 @@ class TerminalSettings extends ChangeNotifier {
         'locations': _locations.map((e) => e.toJson()).toList(),
         'pin': _pin,
         'sharedMailbox': _sharedMailbox,
+        'smtp': _smtp.toJson(),
+        'askLocation': _askLocation,
       };
 
   static TerminalSettings fromJson(
@@ -234,6 +332,10 @@ class TerminalSettings extends ChangeNotifier {
       locations: read('locations', kDefaultLocations),
       pin: (json['pin'] ?? kDefaultPin).toString(),
       sharedMailbox: (json['sharedMailbox'] ?? '').toString(),
+      smtp: json['smtp'] is Map
+          ? SmtpConfig.fromJson(Map<String, dynamic>.from(json['smtp'] as Map))
+          : const SmtpConfig(),
+      askLocation: json['askLocation'] == true,
       store: store,
     );
   }
