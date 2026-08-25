@@ -202,6 +202,20 @@ Si le gabarit Gradle de Flutter change sans qu'une pull request ne soit
 ouverte, le problème n'apparaîtra qu'au build suivant — un déclencheur
 hebdomadaire (`schedule`) comblerait cet écart si besoin.
 
+### Installation et mises à jour
+
+**Sans keystore propre, chaque build est signé avec une clé de debug
+différente** — le runner en génère une neuve à chaque fois. Android refuse
+alors d'installer par-dessus : il faut désinstaller l'ancienne version, ce qui
+efface les réglages (accès SMTP compris).
+
+Déposer les secrets de signature (voir ci-dessous) résout cela : toutes les
+versions partagent la même signature, les mises à jour s'installent
+par-dessus et les réglages survivent.
+
+Le numéro de version est affiché en bas des réglages, pour vérifier d'un coup
+d'œil quelle version tourne réellement sur la tablette.
+
 ### Signature
 
 Le dossier `app/android/` n'est pas versionné : il est régénéré à chaque build.
