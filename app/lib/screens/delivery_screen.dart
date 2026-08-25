@@ -1026,7 +1026,21 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     }
 
     if (query.length < AppConfig.minSearchChars) {
-      return _hintRow(Icons.info_outline, _l.t('search.min'), AppColors.inkSoft);
+      // "Ihr Zeichen" verbindet kein Kurier von sich aus mit dem Empfaenger.
+      // Der Hinweis erspart das Suchen -- und bringt Meldungen mit Namen
+      // statt "unbekannt".
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _hintRow(Icons.info_outline, _l.t('search.min'), AppColors.inkSoft),
+          const SizedBox(height: 6),
+          _hintRow(
+            Icons.description_outlined,
+            _l.t('search.where'),
+            AppColors.inkSoft,
+          ),
+        ],
+      );
     }
 
     if (_searching) return const SizedBox(height: 8);

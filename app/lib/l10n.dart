@@ -55,6 +55,10 @@ class L10n {
       AppLang.fr: 'Nom, prénom ou service',
       AppLang.de: 'Name, Vorname oder Abteilung',
     },
+    'search.where': {
+      AppLang.fr: 'Sur le bon de livraison, le nom figure sous « Votre référence » ou « Ihr Zeichen ».',
+      AppLang.de: 'Auf dem Lieferschein steht der Name unter „Ihr Zeichen" oder „Votre référence".',
+    },
     'search.min': {
       AppLang.fr: 'Saisir au moins 2 lettres',
       AppLang.de: 'Mindestens 2 Zeichen eingeben',
