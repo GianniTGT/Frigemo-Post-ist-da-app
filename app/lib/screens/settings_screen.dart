@@ -94,15 +94,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
         ),
         actions: [
-          TextButton.icon(
-            onPressed: _confirmReset,
-            style: TextButton.styleFrom(foregroundColor: Colors.white),
-            icon: const Icon(Icons.restart_alt, size: 24),
-            label: Text(
-              _l.t('admin.reset'),
-              style: const TextStyle(fontSize: 17),
+          if (wide)
+            TextButton.icon(
+              onPressed: _confirmReset,
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              icon: const Icon(Icons.restart_alt, size: 24),
+              label: Text(
+                _l.t('admin.reset'),
+                style: const TextStyle(fontSize: 17),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: _l.t('admin.reset'),
+              color: Colors.white,
+              iconSize: 26,
+              onPressed: _confirmReset,
+              icon: const Icon(Icons.restart_alt),
             ),
-          ),
           const SizedBox(width: 12),
         ],
       ),
@@ -216,7 +225,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
 
   /// Zugangsdaten liegen im geschuetzten Speicher der App, nicht im APK.
-  Widget _smtpCard() => _card(
+  Widget _smtpCard() {
+    // Nebeneinander bleibt fuer den Text zu wenig Platz -- auf schmalen
+    // Bildschirmen brach er sonst Buchstabe fuer Buchstabe um.
+    final roomy = MediaQuery.sizeOf(context).width >= 600;
+
+    final sslSwitch = SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        _l.t('admin.smtp.ssl'),
+        style: const TextStyle(fontSize: 16),
+      ),
+      value: widget.settings.smtp.ssl,
+      onChanged: (v) =>
+          setState(() => widget.settings.updateSmtp((s) => s.copyWith(ssl: v))),
+    );
+
+    final portField = _field(
+      _l.t('admin.smtp.port'),
+      _port,
+      numeric: true,
+      onChanged: (v) => widget.settings.updateSmtp(
+        (s) => s.copyWith(port: int.tryParse(v) ?? s.port),
+      ),
+    );
+
+    final testButton = FilledButton.icon(
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.accent,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      ),
+      onPressed: _testing ? null : _sendTest,
+      icon: _testing
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.outgoing_mail, size: 22),
+      label: Text(
+        _l.t('admin.smtp.test'),
+        style: const TextStyle(fontSize: 17),
+      ),
+    );
+
+    final testHint = Text(
+      _l.t('admin.smtp.test.target'),
+      style: const TextStyle(fontSize: 14, color: AppColors.inkSoft),
+    );
+
+    return _card(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -230,35 +291,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _field(_l.t('admin.smtp.host'), _host,
                 onChanged: (v) =>
                     widget.settings.updateSmtp((s) => s.copyWith(host: v))),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 140,
-                  child: _field(
-                    _l.t('admin.smtp.port'),
-                    _port,
-                    numeric: true,
-                    onChanged: (v) => widget.settings.updateSmtp(
-                      (s) => s.copyWith(port: int.tryParse(v) ?? s.port),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      _l.t('admin.smtp.ssl'),
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    value: widget.settings.smtp.ssl,
-                    onChanged: (v) => setState(() => widget.settings
-                        .updateSmtp((s) => s.copyWith(ssl: v))),
-                  ),
-                ),
-              ],
-            ),
+            if (roomy)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 160, child: portField),
+                  const SizedBox(width: 16),
+                  Expanded(child: sslSwitch),
+                ],
+              )
+            else ...[
+              portField,
+              sslSwitch,
+            ],
             _field(_l.t('admin.smtp.user'), _user,
                 onChanged: (v) =>
                     widget.settings.updateSmtp((s) => s.copyWith(user: v))),
@@ -272,42 +317,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _field(_l.t('admin.smtp.fromname'), _fromName,
                 onChanged: (v) => widget.settings
                     .updateSmtp((s) => s.copyWith(fromName: v))),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _l.t('admin.smtp.test.target'),
-                    style: const TextStyle(
-                        fontSize: 14, color: AppColors.inkSoft),
-                  ),
-                ),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 16),
-                  ),
-                  onPressed: _testing ? null : _sendTest,
-                  icon: _testing
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.outgoing_mail, size: 22),
-                  label: Text(
-                    _l.t('admin.smtp.test'),
-                    style: const TextStyle(fontSize: 17),
-                  ),
-                ),
-              ],
-            ),
+            if (roomy)
+              Row(
+                children: [
+                  Expanded(child: testHint),
+                  const SizedBox(width: 16),
+                  testButton,
+                ],
+              )
+            else ...[
+              testHint,
+              const SizedBox(height: 12),
+              SizedBox(width: double.infinity, child: testButton),
+            ],
           ],
         ),
       );
+  }
 
   Widget _locationCard() => _card(
         child: SwitchListTile(
