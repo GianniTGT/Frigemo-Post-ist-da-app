@@ -69,9 +69,10 @@ class DeliveryDraft {
   });
 }
 
-/// Drei Dinge koennen schiefgehen: die Liste fehlt, das Terminal ist noch
-/// nicht eingerichtet, oder der Versand scheitert.
-enum ApiErrorKind { listUnavailable, notConfigured, mailFailed }
+/// Vier Dinge koennen schiefgehen: die Liste fehlt, das Terminal ist noch
+/// nicht eingerichtet, die Anmeldung am Postfach scheitert, oder der Versand
+/// geht aus einem anderen Grund nicht durch.
+enum ApiErrorKind { listUnavailable, notConfigured, mailAuth, mailFailed }
 
 class ApiException implements Exception {
   final ApiErrorKind kind;
@@ -83,6 +84,7 @@ class ApiException implements Exception {
   String get messageKey => switch (kind) {
         ApiErrorKind.listUnavailable => 'error.list',
         ApiErrorKind.notConfigured => 'error.notconfigured',
+        ApiErrorKind.mailAuth => 'error.mailauth',
         ApiErrorKind.mailFailed => 'error.mail',
       };
 
@@ -286,6 +288,15 @@ MailContent composeDelivery(
   );
 }
 
+/// SMTP meldet eine gescheiterte Anmeldung als 535 oder 5.7.8.
+bool isAuthFailure(String message) {
+  final lower = message.toLowerCase();
+  return lower.contains('535') ||
+      lower.contains('5.7.8') ||
+      lower.contains('authentication failed') ||
+      lower.contains('authentication failure');
+}
+
 // --- Dienst ----------------------------------------------------------------
 
 class ApiService {
@@ -359,9 +370,19 @@ class ApiService {
     try {
       await send(message, server);
     } on MailerException catch (e) {
-      throw ApiException(ApiErrorKind.mailFailed, e.message);
+      // "Benutzer oder Passwort falsch" ist der haeufigste Fall beim
+      // Einrichten und verdient eine Meldung, mit der man etwas anfangen
+      // kann -- statt eines allgemeinen "ging nicht".
+      throw ApiException(
+        isAuthFailure(e.message) ? ApiErrorKind.mailAuth : ApiErrorKind.mailFailed,
+        e.message,
+      );
     } catch (e) {
-      throw ApiException(ApiErrorKind.mailFailed, e.toString());
+      final text = e.toString();
+      throw ApiException(
+        isAuthFailure(text) ? ApiErrorKind.mailAuth : ApiErrorKind.mailFailed,
+        text,
+      );
     }
   }
 
