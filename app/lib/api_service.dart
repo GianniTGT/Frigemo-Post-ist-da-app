@@ -323,12 +323,24 @@ bool isAuthFailure(String message) {
 
 class ApiService {
   List<Employee>? _staff;
+  String? _ownCsv;
+
+  /// Eigene Liste vom Geraet. Null heisst: die mitgelieferte Datei gilt.
+  /// Ein Wechsel verwirft den Zwischenspeicher, sonst suchte das Terminal
+  /// weiter in der alten Liste.
+  set staffCsv(String? csv) {
+    final next = (csv ?? '').trim().isEmpty ? null : csv;
+    if (next == _ownCsv) return;
+    _ownCsv = next;
+    _staff = null;
+  }
 
   Future<List<Employee>> staff() async {
     final cached = _staff;
     if (cached != null) return cached;
     try {
-      final raw = await rootBundle.loadString('assets/employees.csv');
+      final raw =
+          _ownCsv ?? await rootBundle.loadString('assets/employees.csv');
       final parsed = employeesFromCsv(raw);
       _staff = parsed;
       return parsed;

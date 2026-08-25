@@ -178,6 +178,38 @@ class L10n {
       AppLang.fr: 'Les entrées standard se masquent, elles ne se suppriment pas.',
       AppLang.de: 'Standardeinträge lassen sich ausblenden, nicht löschen.',
     },
+    'admin.staff': {
+      AppLang.fr: 'Liste du personnel',
+      AppLang.de: 'Personalliste',
+    },
+    'admin.staff.hint': {
+      AppLang.fr: 'Colonnes : name,email,department,lang — lang vaut fr ou de.',
+      AppLang.de: 'Spalten: name,email,department,lang – lang ist fr oder de.',
+    },
+    'admin.staff.builtin': {
+      AppLang.fr: 'Liste livrée avec l\u2019application : {count} personnes',
+      AppLang.de: 'Mitgelieferte Liste: {count} Personen',
+    },
+    'admin.staff.own': {
+      AppLang.fr: 'Liste propre à ce terminal : {count} personnes',
+      AppLang.de: 'Eigene Liste dieses Terminals: {count} Personen',
+    },
+    'admin.staff.import': {
+      AppLang.fr: 'Charger un fichier CSV',
+      AppLang.de: 'CSV-Datei einlesen',
+    },
+    'admin.staff.reset': {
+      AppLang.fr: 'Revenir à la liste livrée',
+      AppLang.de: 'Mitgelieferte Liste verwenden',
+    },
+    'admin.staff.ok': {
+      AppLang.fr: '{count} personnes lues.',
+      AppLang.de: '{count} Personen eingelesen.',
+    },
+    'admin.staff.empty': {
+      AppLang.fr: 'Aucune ligne exploitable — la liste précédente reste en place.',
+      AppLang.de: 'Keine brauchbare Zeile – die bisherige Liste bleibt bestehen.',
+    },
     'admin.smtp': {
       AppLang.fr: 'Envoi des e-mails',
       AppLang.de: 'E-Mail-Versand',

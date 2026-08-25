@@ -98,6 +98,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   @override
   void initState() {
     super.initState();
+    _api.staffCsv = widget.settings.staffCsv;
     _searchCtrl.addListener(_onSearchChanged);
     // Der Sendeknopf haengt am Inhalt dieses Feldes.
     _otherCarrierCtrl.addListener(_onOtherCarrierChanged);
@@ -360,7 +361,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         ),
       ),
     );
-    // Nach einer Aenderung kann die bisherige Auswahl ausgeblendet sein.
+    // Nach einer Aenderung kann die bisherige Auswahl ausgeblendet sein,
+    // und die Personalliste eine andere.
+    _api.staffCsv = widget.settings.staffCsv;
     if (mounted) _reset();
   }
 

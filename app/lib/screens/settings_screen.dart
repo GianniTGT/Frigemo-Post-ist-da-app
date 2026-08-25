@@ -3,6 +3,9 @@
 /// Erreichbar ueber langen Druck auf das Logo, geschuetzt durch einen Code.
 library;
 
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../api_service.dart';
@@ -47,7 +50,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// verdecktes Passwort verraet den Fehler nicht.
   bool _showPassword = false;
 
+  /// Anzahl der Personen in der gerade gueltigen Liste.
+  int _staffCount = 0;
+
   L10n get _l => L10n(widget.locale.value);
+
+  @override
+  void initState() {
+    super.initState();
+    _countStaff();
+  }
+
+  Future<void> _countStaff() async {
+    final service = ApiService()..staffCsv = widget.settings.staffCsv;
+    try {
+      final staff = await service.staff();
+      if (mounted) setState(() => _staffCount = staff.length);
+    } on ApiException {
+      if (mounted) setState(() => _staffCount = 0);
+    }
+  }
 
   @override
   void dispose() {
@@ -124,6 +146,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
+            _staffCard(),
+            const SizedBox(height: 20),
             _smtpCard(),
             const SizedBox(height: 20),
             _mailboxCard(),
@@ -154,10 +178,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Damit im Zweifel ablesbar ist, welche Fassung auf dem Geraet
             // wirklich laeuft -- eine gescheiterte Aktualisierung sieht man
             // dem Bildschirm sonst nicht an.
-            Center(
+            const Center(
               child: Text(
                 'Version ${AppConfig.appVersion}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   color: AppColors.inkSoft,
                 ),
@@ -365,6 +389,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
   }
+
+  /// Ein weiterer Standort liest hier seine eigene Liste ein -- ohne dass
+  /// jemand ein eigenes APK bauen muss.
+  Widget _staffCard() => _card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _heading(_l.t('admin.staff')),
+            const SizedBox(height: 6),
+            Text(
+              _l.t(
+                widget.settings.hasOwnStaffList
+                    ? 'admin.staff.own'
+                    : 'admin.staff.builtin',
+                args: {'count': '$_staffCount'},
+              ),
+              style: const TextStyle(fontSize: 16, color: AppColors.ink),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _l.t('admin.staff.hint'),
+              style: const TextStyle(fontSize: 15, color: AppColors.inkSoft),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
+                  ),
+                  onPressed: _importStaff,
+                  icon: const Icon(Icons.upload_file, size: 22),
+                  label: Text(
+                    _l.t('admin.staff.import'),
+                    style: const TextStyle(fontSize: 17),
+                  ),
+                ),
+                if (widget.settings.hasOwnStaffList)
+                  TextButton.icon(
+                    onPressed: () async {
+                      setState(() => widget.settings.setStaffCsv(null));
+                      await _countStaff();
+                    },
+                    icon: const Icon(Icons.restore, size: 22),
+                    label: Text(
+                      _l.t('admin.staff.reset'),
+                      style: const TextStyle(fontSize: 17),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
 
   Widget _locationCard() => _card(
         child: SwitchListTile(
@@ -601,6 +683,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
     setState(() => widget.settings.setPin(saved.trim()));
+  }
+
+  /// Liest eine CSV vom Geraet ein. Eine Datei ohne brauchbare Zeile wird
+  /// abgewiesen -- sonst stuende der Empfang vor einer leeren Suche, und
+  /// niemand wuesste warum.
+  Future<void> _importStaff() async {
+    // Android filtert .csv ueber die Endung nicht zuverlaessig, deshalb
+    // ohne Einschraenkung waehlen lassen.
+    final file = await FilePicker.pickFile();
+    if (!mounted || file == null) return;
+
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+
+    // allowMalformed, damit eine aus Excel exportierte Datei mit fremder
+    // Zeichenkodierung nicht am ersten Umlaut scheitert.
+    final text = utf8.decode(bytes, allowMalformed: true);
+    final parsed = employeesFromCsv(text);
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (parsed.isEmpty) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(_l.t('admin.staff.empty'))),
+      );
+      return;
+    }
+
+    setState(() {
+      widget.settings.setStaffCsv(text);
+      _staffCount = parsed.length;
+    });
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          _l.t('admin.staff.ok', args: {'count': '${parsed.length}'}),
+        ),
+      ),
+    );
   }
 
   /// Prueft den Zugang, ohne dass jemand eine echte Sendung erfinden muss.

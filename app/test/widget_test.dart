@@ -323,6 +323,33 @@ void main() {
       expect(settings.hasPin, isFalse);
     });
 
+    test('nutzt ohne Import die mitgelieferte Liste', () {
+      final settings = TerminalSettings();
+      expect(settings.staffCsv, isNull);
+      expect(settings.hasOwnStaffList, isFalse);
+    });
+
+    test('merkt sich eine eingelesene Liste', () {
+      final settings = TerminalSettings();
+      settings.setStaffCsv(_csv);
+      expect(settings.hasOwnStaffList, isTrue);
+
+      final restored = TerminalSettings.fromJson(settings.toJson());
+      expect(restored.hasOwnStaffList, isTrue);
+      expect(employeesFromCsv(restored.staffCsv!).length, 3);
+    });
+
+    test('kehrt zur mitgelieferten Liste zurueck', () {
+      final settings = TerminalSettings();
+      settings.setStaffCsv(_csv);
+      settings.setStaffCsv(null);
+      expect(settings.hasOwnStaffList, isFalse);
+
+      // Auch eine leere Datei zaehlt nicht als eigene Liste.
+      settings.setStaffCsv('   ');
+      expect(settings.hasOwnStaffList, isFalse);
+    });
+
     test('fragt den Abholort standardmaessig nicht', () {
       // Der Fahrer kann nicht wissen, wohin die Sendung im Werk gehoert.
       expect(TerminalSettings().askLocation, isFalse);
@@ -458,6 +485,14 @@ void main() {
         'admin.delete',
         'admin.reset',
         'admin.builtin.hint',
+        'admin.staff',
+        'admin.staff.hint',
+        'admin.staff.builtin',
+        'admin.staff.own',
+        'admin.staff.import',
+        'admin.staff.reset',
+        'admin.staff.ok',
+        'admin.staff.empty',
         'admin.smtp',
         'admin.smtp.hint',
         'admin.smtp.host',
