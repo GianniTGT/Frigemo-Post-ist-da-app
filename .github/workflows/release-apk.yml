@@ -81,6 +81,12 @@ jobs:
             flutter create --platforms=android --project-name frigemo_post_terminal .
           fi
 
+      # Ohne diesen Eintrag darf ein Release-APK nicht ins Netz: Flutter setzt
+      # die Berechtigung nur in die Debug-Variante. Der SMTP-Versand scheitert
+      # sonst schon bei der Namensaufloesung.
+      - name: Internet-Berechtigung eintragen
+        run: python3 .github/scripts/add_internet_permission.py app/android
+
       - name: Abhängigkeiten laden
         working-directory: app
         run: flutter pub get
@@ -98,9 +104,12 @@ jobs:
       # echte, gerade erzeugte Vorlage und bricht ab, wenn sie nicht mehr
       # passt -- Monate bevor jemand einen Keystore hinterlegt und sich auf
       # die Signatur verlaesst.
-      - name: Signatur-Patch gegen die aktuelle Flutter-Vorlage prüfen
+      - name: Skripte gegen die aktuelle Flutter-Vorlage prüfen
         if: github.event_name == 'pull_request'
         run: |
+          grep -q 'android.permission.INTERNET' \
+            app/android/app/src/main/AndroidManifest.xml
+          python3 .github/scripts/add_internet_permission.py app/android  # idempotent?
           python3 .github/scripts/inject_signing.py app/android
           python3 .github/scripts/inject_signing.py app/android   # idempotent?
           gradle=$(ls app/android/app/build.gradle.kts app/android/app/build.gradle 2>/dev/null | head -1)

@@ -42,6 +42,12 @@ abandonné passerait pour réussi.
 Les identifiants sont saisis dans les réglages et restent dans la mémoire
 privée de l'application sur la tablette ; **ils ne sont pas dans l'APK**.
 
+Aucune intervention de l'informatique de frigemo n'est nécessaire : envoyer
+*vers* frigemo.ch ne demande rien. Une boîte externe dédiée (Gmail, Outlook.com
+ou un domaine propre) suffit, et son dossier « Envoyés » tient lieu d'archive.
+Seul le filtre anti-spam du destinataire peut poser problème ; cela se voit dès
+le premier essai.
+
 Quand aucun nom ne figure sur le colis, « Destinataire inconnu » envoie
 l'annonce uniquement à la boîte commune.
 
