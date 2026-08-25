@@ -1,16 +1,18 @@
-/// Kein Server mehr: die Personalliste liegt als CSV im App-Bundle, und der
-/// Versand laeuft ueber die E-Mail-App des Geraets (mailto:). Dateiname und
-/// Klassennamen stammen noch aus der Server-Zeit -- das Verhalten dahinter
-/// ist vollstaendig lokal.
+/// Kein Server: die Personalliste liegt als CSV im App-Bundle, und die
+/// Meldung geht direkt per SMTP raus. Der Fahrer sieht dabei keine fremde
+/// App -- er bleibt im Terminal, und das Terminal weiss, ob es geklappt hat.
+/// Dateiname und Klassennamen stammen noch aus der Server-Zeit.
 library;
 
 import 'dart:async';
 
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:url_launcher/url_launcher.dart';
+import 'package:mailer/mailer.dart';
+import 'package:mailer/smtp_server.dart';
 
 import 'config.dart';
 import 'l10n.dart';
+import 'settings.dart';
 
 class Employee {
   final String id;
@@ -42,7 +44,10 @@ class DeliveryDraft {
   /// Angezeigte Bezeichnungen -- firmenintern benannt, deshalb steht hier
   /// der fertige Text und keine Kennung.
   final String kindLabel;
-  final String locationLabel;
+
+  /// Null, wenn der Abholort nicht gefragt wird -- dann steht er auch nicht
+  /// in der Meldung.
+  final String? locationLabel;
 
   /// Kuehlware und alles, was die Verwaltung ebenso markiert hat.
   final bool urgent;
@@ -64,8 +69,9 @@ class DeliveryDraft {
   });
 }
 
-/// Ohne Server bleiben genau zwei Dinge, die schiefgehen koennen.
-enum ApiErrorKind { listUnavailable, mailFailed }
+/// Drei Dinge koennen schiefgehen: die Liste fehlt, das Terminal ist noch
+/// nicht eingerichtet, oder der Versand scheitert.
+enum ApiErrorKind { listUnavailable, notConfigured, mailFailed }
 
 class ApiException implements Exception {
   final ApiErrorKind kind;
@@ -76,6 +82,7 @@ class ApiException implements Exception {
   /// Übersetzungsschlüssel für die Anzeige.
   String get messageKey => switch (kind) {
         ApiErrorKind.listUnavailable => 'error.list',
+        ApiErrorKind.notConfigured => 'error.notconfigured',
         ApiErrorKind.mailFailed => 'error.mail',
       };
 
@@ -207,14 +214,33 @@ String formatStamp(DateTime when) =>
     '${_two(when.day)}.${_two(when.month)}.${when.year} '
     '${_two(when.hour)}:${_two(when.minute)}';
 
-/// Baut die mailto-Adresse, die das Terminal an die E-Mail-App uebergibt.
+/// Der fertige Text einer Meldung -- getrennt vom Versand, damit er sich
+/// ohne Netzverbindung pruefen laesst.
+class MailContent {
+  final List<String> to;
+  final List<String> cc;
+  final String subject;
+  final String body;
+
+  const MailContent({
+    required this.to,
+    required this.cc,
+    required this.subject,
+    required this.body,
+  });
+}
+
 /// Mit Empfaenger geht die Meldung an die Person, das gemeinsame Postfach
 /// steht in Kopie; ohne Empfaenger geht sie nur an das gemeinsame Postfach.
-Uri composeMail(DeliveryDraft draft, {DateTime? now, String? sharedMailbox}) {
+MailContent composeDelivery(
+  DeliveryDraft draft, {
+  String? sharedMailbox,
+  DateTime? now,
+}) {
   final recipient = draft.recipient;
   final l = L10n(recipient?.lang ?? draft.terminalLang);
   final urgent = draft.urgent;
-  final shared = (sharedMailbox ?? AppConfig.mailFallback).trim();
+  final shared = (sharedMailbox ?? '').trim();
 
   final to = <String>[];
   final cc = <String>[];
@@ -225,13 +251,14 @@ Uri composeMail(DeliveryDraft draft, {DateTime? now, String? sharedMailbox}) {
     to.add(shared);
   }
   if (to.isEmpty) {
-    throw const ApiException(ApiErrorKind.mailFailed, 'no recipient address');
+    throw const ApiException(ApiErrorKind.notConfigured, 'no recipient address');
   }
 
   final subject = (urgent ? l.t('mail.urgent.prefix') : '') +
       l.t(recipient != null ? 'mail.subject' : 'mail.subject.unknown',
           args: {'carrier': draft.carrierLabel});
 
+  final location = draft.locationLabel;
   final lines = <String>[
     recipient != null
         ? l.t('mail.intro', args: {'name': recipient.name.split(' ').first})
@@ -240,8 +267,10 @@ Uri composeMail(DeliveryDraft draft, {DateTime? now, String? sharedMailbox}) {
     '${l.t('mail.carrier')}: ${draft.carrierLabel}',
     '${l.t('quantity')}: ${draft.quantity}',
     '${l.t('kind.label')}: ${draft.kindLabel}',
-    '${l.t('location.label')}: ${draft.locationLabel}',
-    if (recipient == null) '${l.t('mail.recipient')}: ${l.t('recipient.unknown')}',
+    if (location != null && location.isNotEmpty)
+      '${l.t('location.label')}: $location',
+    if (recipient == null)
+      '${l.t('mail.recipient')}: ${l.t('recipient.unknown')}',
     if (draft.note.isNotEmpty) '${l.t('mail.note')}: ${draft.note}',
     '${l.t('mail.time')}: ${formatStamp(now ?? DateTime.now())}',
     if (urgent) ...['', l.t('mail.urgentNote')],
@@ -249,14 +278,12 @@ Uri composeMail(DeliveryDraft draft, {DateTime? now, String? sharedMailbox}) {
     l.t('mail.footer'),
   ];
 
-  // Adressen bleiben unkodiert – E-Mail-Adressen brauchen das nicht, und
-  // manche Mail-Apps stolpern ueber kodierte Kommas.
-  final query = <String>[
-    if (cc.isNotEmpty) 'cc=${cc.join(',')}',
-    'subject=${Uri.encodeComponent(subject)}',
-    'body=${Uri.encodeComponent(lines.join('\n'))}',
-  ];
-  return Uri.parse('mailto:${to.join(',')}?${query.join('&')}');
+  return MailContent(
+    to: to,
+    cc: cc,
+    subject: subject,
+    body: lines.join('\n'),
+  );
 }
 
 // --- Dienst ----------------------------------------------------------------
@@ -285,22 +312,57 @@ class ApiService {
     return searchIn(await staff(), trimmed, limit: AppConfig.maxSearchResults);
   }
 
-  /// Uebergibt die fertige Meldung an die E-Mail-App. Abgeschickt wird sie
-  /// dort von Hand – das Terminal sieht nicht, ob das passiert ist.
+  /// Verschickt die Meldung selbst. Der Fahrer sieht keine fremde App, und
+  /// die Erfolgsmeldung stimmt: sie erscheint erst, wenn der Mailserver die
+  /// Sendung angenommen hat.
   Future<void> submitDelivery(
     DeliveryDraft draft, {
+    required SmtpConfig smtp,
     String? sharedMailbox,
   }) async {
-    final uri = composeMail(draft, sharedMailbox: sharedMailbox);
+    final content = composeDelivery(draft, sharedMailbox: sharedMailbox);
+    await sendMail(content, smtp);
+  }
+
+  /// Auch fuer die Testmeldung aus der Verwaltung.
+  Future<void> sendMail(MailContent content, SmtpConfig smtp) async {
+    if (!smtp.isComplete) {
+      throw const ApiException(ApiErrorKind.notConfigured);
+    }
 
     if (AppConfig.demoMode) {
       await Future<void>.delayed(const Duration(milliseconds: 600));
       return;
     }
 
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication)
-        .catchError((_) => false);
-    if (!opened) throw const ApiException(ApiErrorKind.mailFailed);
+    final server = SmtpServer(
+      smtp.host.trim(),
+      port: smtp.port,
+      ssl: smtp.ssl,
+      username: smtp.user.trim().isEmpty ? null : smtp.user.trim(),
+      password: smtp.password.isEmpty ? null : smtp.password,
+      // Ohne Zugangsdaten ist es ein internes Relais, das keine Anmeldung
+      // verlangt -- sonst bricht der Versand schon vor dem Verbinden ab.
+      allowInsecure: smtp.user.trim().isEmpty,
+    );
+
+    final message = Message()
+      ..from = Address(
+        smtp.fromAddress.trim(),
+        smtp.fromName.trim().isEmpty ? null : smtp.fromName.trim(),
+      )
+      ..recipients.addAll(content.to)
+      ..ccRecipients.addAll(content.cc)
+      ..subject = content.subject
+      ..text = content.body;
+
+    try {
+      await send(message, server);
+    } on MailerException catch (e) {
+      throw ApiException(ApiErrorKind.mailFailed, e.message);
+    } catch (e) {
+      throw ApiException(ApiErrorKind.mailFailed, e.toString());
+    }
   }
 
   void dispose() {}

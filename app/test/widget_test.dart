@@ -9,7 +9,6 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frigemo_post_terminal/api_service.dart';
-import 'package:frigemo_post_terminal/config.dart';
 import 'package:frigemo_post_terminal/l10n.dart';
 import 'package:frigemo_post_terminal/settings.dart';
 
@@ -25,6 +24,7 @@ DeliveryDraft _draft({
   Employee? recipient,
   bool urgent = false,
   String kindLabel = 'Colis',
+  String? locationLabel,
   String note = '',
   int quantity = 1,
 }) =>
@@ -33,7 +33,7 @@ DeliveryDraft _draft({
       recipient: recipient,
       quantity: quantity,
       kindLabel: kindLabel,
-      locationLabel: 'Réception',
+      locationLabel: locationLabel,
       urgent: urgent,
       note: note,
       terminalLang: AppLang.fr,
@@ -104,7 +104,7 @@ void main() {
     });
   });
 
-  group('mailto', () {
+  group('Meldungstext', () {
     const shared = 'paket@frigemo.ch';
     const person = Employee(
       id: '1',
@@ -114,79 +114,78 @@ void main() {
       lang: AppLang.de,
     );
 
-    test('schickt an die Person, gemeinsames Postfach in Kopie', () {
-      final uri = composeMail(_draft(recipient: person), sharedMailbox: shared);
-      expect(uri.scheme, 'mailto');
-      expect(uri.path, 'h.muster@frigemo.ch');
-      expect(uri.queryParameters['cc'], shared);
+    test('geht an die Person, gemeinsames Postfach in Kopie', () {
+      final mail = composeDelivery(_draft(recipient: person),
+          sharedMailbox: shared);
+      expect(mail.to, ['h.muster@frigemo.ch']);
+      expect(mail.cc, [shared]);
     });
 
     test('ohne Namen geht die Meldung nur ans gemeinsame Postfach', () {
-      final uri = composeMail(_draft(), sharedMailbox: shared);
-      expect(uri.path, shared);
-      expect(uri.queryParameters['cc'], isNull);
-      expect(uri.queryParameters['body'], contains(fr.t('recipient.unknown')));
+      final mail = composeDelivery(_draft(), sharedMailbox: shared);
+      expect(mail.to, [shared]);
+      expect(mail.cc, isEmpty);
+      expect(mail.body, contains(fr.t('recipient.unknown')));
     });
 
-    // Das gemeinsame Postfach gibt es noch nicht. Ohne Angabe darf keine
-    // Meldung an eine tote Adresse gehen -- lieber gar keine Kopie.
     test('ohne gemeinsames Postfach bleibt die Kopie weg', () {
-      final uri = composeMail(_draft(recipient: person), sharedMailbox: '');
-      expect(uri.path, 'h.muster@frigemo.ch');
-      expect(uri.queryParameters['cc'], isNull);
+      final mail = composeDelivery(_draft(recipient: person));
+      expect(mail.to, ['h.muster@frigemo.ch']);
+      expect(mail.cc, isEmpty);
     });
 
     test('ohne Postfach und ohne Namen gibt es keine Adresse', () {
-      expect(
-        () => composeMail(_draft(), sharedMailbox: ''),
-        throwsA(isA<ApiException>()),
-      );
-    });
-
-    test('der Standardbuild hat noch kein gemeinsames Postfach', () {
-      expect(AppConfig.hasSharedMailbox, isFalse);
+      expect(() => composeDelivery(_draft()), throwsA(isA<ApiException>()));
     });
 
     test('folgt der Sprache der Person, nicht der des Terminals', () {
       // Terminal auf Franzoesisch, Empfaenger deutschsprachig.
-      final uri = composeMail(_draft(recipient: person), sharedMailbox: shared);
-      expect(uri.queryParameters['subject'], contains('Lieferung für Sie'));
-      expect(uri.queryParameters['body'], contains(de.t('mail.footer')));
+      final mail = composeDelivery(_draft(recipient: person),
+          sharedMailbox: shared);
+      expect(mail.subject, contains('Lieferung für Sie'));
+      expect(mail.body, contains(de.t('mail.footer')));
     });
 
     test('markiert Kuehlware als dringend', () {
-      final normal = composeMail(_draft(recipient: person), sharedMailbox: shared);
-      final chilled = composeMail(
+      final normal = composeDelivery(_draft(recipient: person));
+      final chilled = composeDelivery(
         _draft(recipient: person, urgent: true, kindLabel: 'Kühlware'),
-        sharedMailbox: shared,
       );
-      expect(normal.queryParameters['subject'], isNot(startsWith('[')));
-      expect(chilled.queryParameters['subject'], startsWith('[DRINGEND]'));
-      expect(chilled.queryParameters['body'], contains(de.t('mail.urgentNote')));
+      expect(normal.subject, isNot(startsWith('[')));
+      expect(chilled.subject, startsWith('[DRINGEND]'));
+      expect(chilled.body, contains(de.t('mail.urgentNote')));
     });
 
     test('nimmt die firmeninterne Bezeichnung mit', () {
-      final body = composeMail(
+      final mail = composeDelivery(
         _draft(recipient: person, kindLabel: 'Palette Kühlraum 3'),
-        sharedMailbox: shared,
-      ).queryParameters['body']!;
-      expect(body, contains('Palette Kühlraum 3'));
+      );
+      expect(mail.body, contains('Palette Kühlraum 3'));
+    });
+
+    // Der Fahrer wird nicht nach dem Abholort gefragt -- dann darf auch
+    // keine Zeile dazu in der Meldung stehen.
+    test('laesst den Abholort weg, wenn er nicht gefragt wird', () {
+      final ohne = composeDelivery(_draft(recipient: person));
+      expect(ohne.body, isNot(contains(de.t('location.label'))));
+
+      final mit = composeDelivery(
+        _draft(recipient: person, locationLabel: 'Kühlraum'),
+      );
+      expect(mit.body, contains('Kühlraum'));
     });
 
     test('nimmt Menge und Bemerkung mit', () {
-      final uri = composeMail(
+      final mail = composeDelivery(
         _draft(recipient: person, quantity: 4, note: 'Palette beschädigt'),
-        sharedMailbox: shared,
       );
-      final body = uri.queryParameters['body']!;
-      expect(body, contains('${de.t('quantity')}: 4'));
-      expect(body, contains('Palette beschädigt'));
+      expect(mail.body, contains('${de.t('quantity')}: 4'));
+      expect(mail.body, contains('Palette beschädigt'));
     });
 
     test('laesst die Bemerkungszeile weg, wenn nichts drinsteht', () {
-      final body = composeMail(_draft(recipient: person), sharedMailbox: shared)
-          .queryParameters['body']!;
-      expect(body, isNot(contains(de.t('mail.note'))));
+      final mail = composeDelivery(_draft(recipient: person));
+      expect(mail.body, isNot(contains(de.t('mail.note'))));
     });
   });
 
@@ -244,6 +243,57 @@ void main() {
       expect(restored.sharedMailbox, 'paket@frigemo.ch');
       expect(restored.kinds.last.customLabel, 'Tiefkühl intern');
       expect(restored.kinds.last.urgent, isTrue);
+    });
+
+    test('fragt den Abholort standardmaessig nicht', () {
+      // Der Fahrer kann nicht wissen, wohin die Sendung im Werk gehoert.
+      expect(TerminalSettings().askLocation, isFalse);
+    });
+
+    test('haelt den Versandzugang fuer unvollstaendig, solange etwas fehlt', () {
+      expect(const SmtpConfig().isComplete, isFalse);
+      expect(const SmtpConfig(host: 'smtp.frigemo.ch').isComplete, isFalse);
+      expect(
+        const SmtpConfig(
+          host: 'smtp.frigemo.ch',
+          fromAddress: 'empfang@frigemo.ch',
+        ).isComplete,
+        isTrue,
+      );
+    });
+
+    test('bewahrt den Versandzugang beim Zuruecksetzen', () {
+      final settings = TerminalSettings();
+      settings.updateSmtp((s) => s.copyWith(
+            host: 'smtp.frigemo.ch',
+            fromAddress: 'empfang@frigemo.ch',
+          ));
+      settings.setAskLocation(true);
+
+      settings.resetToDefaults();
+
+      // Auswahl zurueck, Zugang bleibt -- sonst stuende das Terminal stumm.
+      expect(settings.askLocation, isFalse);
+      expect(settings.smtp.host, 'smtp.frigemo.ch');
+      expect(settings.smtp.isComplete, isTrue);
+    });
+
+    test('uebersteht Speichern und Laden des Versandzugangs', () {
+      final settings = TerminalSettings();
+      settings.updateSmtp((s) => s.copyWith(
+            host: 'smtp.frigemo.ch',
+            port: 465,
+            ssl: true,
+            user: 'empfang',
+            password: 'geheim',
+            fromAddress: 'empfang@frigemo.ch',
+          ));
+
+      final restored = TerminalSettings.fromJson(settings.toJson());
+      expect(restored.smtp.host, 'smtp.frigemo.ch');
+      expect(restored.smtp.port, 465);
+      expect(restored.smtp.ssl, isTrue);
+      expect(restored.smtp.password, 'geheim');
     });
 
     test('faellt bei beschaedigten Daten auf die Standardwerte zurueck', () {
@@ -306,6 +356,7 @@ void main() {
         'success.next',
         'error.title',
         'error.list',
+        'error.notconfigured',
         'error.mail',
         'retry',
         'close',
@@ -324,6 +375,20 @@ void main() {
         'admin.delete',
         'admin.reset',
         'admin.builtin.hint',
+        'admin.smtp',
+        'admin.smtp.hint',
+        'admin.smtp.host',
+        'admin.smtp.port',
+        'admin.smtp.user',
+        'admin.smtp.password',
+        'admin.smtp.ssl',
+        'admin.smtp.from',
+        'admin.smtp.fromname',
+        'admin.smtp.test',
+        'admin.smtp.test.ok',
+        'admin.smtp.test.target',
+        'admin.location.ask',
+        'admin.location.hint',
         'admin.save',
         'admin.empty',
         'phone.title',

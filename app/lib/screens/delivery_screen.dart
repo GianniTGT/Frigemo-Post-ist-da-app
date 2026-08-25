@@ -189,15 +189,20 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       recipient: _recipient,
       quantity: _quantity,
       kindLabel: widget.settings.labelOf(_kindEntry, _l, 'kind'),
-      locationLabel: widget.settings.labelOf(_locationEntry, _l, 'location'),
+      locationLabel: widget.settings.askLocation
+          ? widget.settings.labelOf(_locationEntry, _l, 'location')
+          : null,
       urgent: _kindEntry.urgent,
       note: _noteCtrl.text.trim(),
       terminalLang: widget.locale.value,
     );
 
     try {
-      await _api.submitDelivery(draft,
-          sharedMailbox: widget.settings.sharedMailbox);
+      await _api.submitDelivery(
+        draft,
+        smtp: widget.settings.smtp,
+        sharedMailbox: widget.settings.sharedMailbox,
+      );
       if (!mounted) return;
       setState(() {
         _submitting = false;
@@ -980,7 +985,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                       _kind = entry.id;
                       // Kuehlware gehoert in den Kuehlraum -- sofern es ihn
                       // in den Einstellungen noch gibt.
-                      if (entry.urgent) {
+                      if (entry.urgent && widget.settings.askLocation) {
                         final cold = widget.settings.visibleLocations
                             .where((e) => e.id == 'coldroom');
                         if (cold.isNotEmpty) _location = cold.first.id;
@@ -995,28 +1000,32 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             const SizedBox(height: 12),
             _hintRow(Icons.ac_unit, _l.t('chilled.warning'), AppColors.alert),
           ],
-          const SizedBox(height: 22),
-          Text(
-            _l.t('location.label'),
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              for (final entry in widget.settings.visibleLocations)
-                _choiceChip(
-                  label: widget.settings.labelOf(entry, _l, 'location'),
-                  selected: _locationEntry.id == entry.id,
-                  color: AppColors.ink,
-                  onTap: () {
-                    setState(() => _location = entry.id);
-                    _touch();
-                  },
-                ),
-            ],
-          ),
+          // Der Fahrer weiss nicht, wohin die Sendung im Werk gehoert.
+          // Standardmaessig fragt das Terminal ihn deshalb nicht danach.
+          if (widget.settings.askLocation) ...[
+            const SizedBox(height: 22),
+            Text(
+              _l.t('location.label'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final entry in widget.settings.visibleLocations)
+                  _choiceChip(
+                    label: widget.settings.labelOf(entry, _l, 'location'),
+                    selected: _locationEntry.id == entry.id,
+                    color: AppColors.ink,
+                    onTap: () {
+                      setState(() => _location = entry.id);
+                      _touch();
+                    },
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 22),
           TextField(
             controller: _noteCtrl,

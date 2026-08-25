@@ -109,9 +109,13 @@ class L10n {
       AppLang.fr: 'La liste du personnel n\u2019a pas pu être lue. Prévenir l\u2019informatique.',
       AppLang.de: 'Die Personalliste liess sich nicht lesen. IT informieren.',
     },
+    'error.notconfigured': {
+      AppLang.fr: 'Le terminal n\u2019est pas encore configuré pour l\u2019envoi. Prévenir l\u2019informatique.',
+      AppLang.de: 'Das Terminal ist noch nicht für den Versand eingerichtet. IT informieren.',
+    },
     'error.mail': {
-      AppLang.fr: 'Impossible d\u2019ouvrir l\u2019application e-mail. Prévenir le destinataire par téléphone.',
-      AppLang.de: 'Die E-Mail-App liess sich nicht öffnen. Empfänger telefonisch informieren.',
+      AppLang.fr: 'La notification n\u2019a pas pu être envoyée. Prévenir le destinataire par téléphone.',
+      AppLang.de: 'Die Benachrichtigung konnte nicht gesendet werden. Empfänger telefonisch informieren.',
     },
     'retry': {AppLang.fr: 'Réessayer', AppLang.de: 'Nochmals versuchen'},
     'close': {AppLang.fr: 'Fermer', AppLang.de: 'Schliessen'},
@@ -153,6 +157,56 @@ class L10n {
     'admin.builtin.hint': {
       AppLang.fr: 'Les entrées standard se masquent, elles ne se suppriment pas.',
       AppLang.de: 'Standardeinträge lassen sich ausblenden, nicht löschen.',
+    },
+    'admin.smtp': {
+      AppLang.fr: 'Envoi des e-mails',
+      AppLang.de: 'E-Mail-Versand',
+    },
+    'admin.smtp.hint': {
+      AppLang.fr: 'Le terminal envoie lui-même : le chauffeur ne voit aucune application e-mail.',
+      AppLang.de: 'Das Terminal versendet selbst – der Fahrer sieht keine E-Mail-App.',
+    },
+    'admin.smtp.host': {AppLang.fr: 'Serveur', AppLang.de: 'Server'},
+    'admin.smtp.port': {AppLang.fr: 'Port', AppLang.de: 'Port'},
+    'admin.smtp.user': {
+      AppLang.fr: 'Utilisateur (vide = relais interne)',
+      AppLang.de: 'Benutzer (leer = internes Relais)',
+    },
+    'admin.smtp.password': {
+      AppLang.fr: 'Mot de passe',
+      AppLang.de: 'Passwort',
+    },
+    'admin.smtp.ssl': {
+      AppLang.fr: 'SSL direct (port 465)',
+      AppLang.de: 'Direktes SSL (Port 465)',
+    },
+    'admin.smtp.from': {
+      AppLang.fr: 'Adresse d\u2019expédition',
+      AppLang.de: 'Absenderadresse',
+    },
+    'admin.smtp.fromname': {
+      AppLang.fr: 'Nom affiché',
+      AppLang.de: 'Angezeigter Name',
+    },
+    'admin.smtp.test': {
+      AppLang.fr: 'Envoyer un test',
+      AppLang.de: 'Testmeldung senden',
+    },
+    'admin.smtp.test.ok': {
+      AppLang.fr: 'Test envoyé. Vérifier la boîte de réception.',
+      AppLang.de: 'Test verschickt. Posteingang prüfen.',
+    },
+    'admin.smtp.test.target': {
+      AppLang.fr: 'Le test part à l\u2019adresse d\u2019expédition.',
+      AppLang.de: 'Der Test geht an die Absenderadresse.',
+    },
+    'admin.location.ask': {
+      AppLang.fr: 'Demander le lieu de retrait',
+      AppLang.de: 'Abholort abfragen',
+    },
+    'admin.location.hint': {
+      AppLang.fr: 'Désactivé : le chauffeur ne choisit pas où va le colis, il ne peut pas le savoir.',
+      AppLang.de: 'Aus: Der Fahrer wählt nicht, wohin die Sendung gehört – er kann es nicht wissen.',
     },
     'admin.save': {AppLang.fr: 'Enregistrer', AppLang.de: 'Speichern'},
     'admin.empty': {
