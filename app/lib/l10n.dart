@@ -113,6 +113,10 @@ class L10n {
       AppLang.fr: 'Le terminal n\u2019est pas encore configuré pour l\u2019envoi. Prévenir l\u2019informatique.',
       AppLang.de: 'Das Terminal ist noch nicht für den Versand eingerichtet. IT informieren.',
     },
+    'error.mailauth': {
+      AppLang.fr: 'Le serveur de messagerie refuse l\u2019utilisateur ou le mot de passe.',
+      AppLang.de: 'Der Mailserver weist Benutzer oder Passwort zurück.',
+    },
     'error.mail': {
       AppLang.fr: 'La notification n\u2019a pas pu être envoyée. Prévenir le destinataire par téléphone.',
       AppLang.de: 'Die Benachrichtigung konnte nicht gesendet werden. Empfänger telefonisch informieren.',
@@ -187,6 +191,10 @@ class L10n {
     'admin.smtp.fromname': {
       AppLang.fr: 'Nom affiché',
       AppLang.de: 'Angezeigter Name',
+    },
+    'admin.smtp.show': {
+      AppLang.fr: 'Afficher le mot de passe',
+      AppLang.de: 'Passwort anzeigen',
     },
     'admin.smtp.test': {
       AppLang.fr: 'Envoyer un test',

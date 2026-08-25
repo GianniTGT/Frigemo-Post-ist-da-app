@@ -43,6 +43,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   bool _testing = false;
 
+  /// Auf einer Bildschirmtastatur vertippt man sich leicht, und ein
+  /// verdecktes Passwort verraet den Fehler nicht.
+  bool _showPassword = false;
+
   L10n get _l => L10n(widget.locale.value);
 
   @override
@@ -216,6 +220,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     TextEditingController controller, {
     bool obscure = false,
     bool numeric = false,
+    Widget? suffix,
     void Function(String)? onChanged,
   }) =>
       Padding(
@@ -230,6 +235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: const TextStyle(fontSize: 18),
           decoration: InputDecoration(
             labelText: label,
+            suffixIcon: suffix,
             border: const OutlineInputBorder(),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -321,10 +327,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _field(_l.t('admin.smtp.user'), _user,
                 onChanged: (v) =>
                     widget.settings.updateSmtp((s) => s.copyWith(user: v))),
-            _field(_l.t('admin.smtp.password'), _password,
-                obscure: true,
-                onChanged: (v) => widget.settings
-                    .updateSmtp((s) => s.copyWith(password: v))),
+            _field(
+              _l.t('admin.smtp.password'),
+              _password,
+              obscure: !_showPassword,
+              suffix: IconButton(
+                tooltip: _l.t('admin.smtp.show'),
+                icon: Icon(
+                  _showPassword ? Icons.visibility_off : Icons.visibility,
+                ),
+                onPressed: () =>
+                    setState(() => _showPassword = !_showPassword),
+              ),
+              onChanged: (v) =>
+                  widget.settings.updateSmtp((s) => s.copyWith(password: v)),
+            ),
             _field(_l.t('admin.smtp.from'), _from,
                 onChanged: (v) => widget.settings
                     .updateSmtp((s) => s.copyWith(fromAddress: v))),

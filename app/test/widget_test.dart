@@ -189,6 +189,22 @@ void main() {
     });
   });
 
+  group('Anmeldefehler', () {
+    // Beim Einrichten ist "Benutzer oder Passwort falsch" der haeufigste
+    // Fall. Er verdient eine Meldung, mit der man etwas anfangen kann.
+    test('erkennt die Antworten des Mailservers', () {
+      expect(isAuthFailure('Authentication Failed (code: 535)'), isTrue);
+      expect(isAuthFailure('< 5.7.8 Error: authentication failed'), isTrue);
+      expect(isAuthFailure('authentication failure'), isTrue);
+    });
+
+    test('haelt andere Stoerungen auseinander', () {
+      expect(isAuthFailure('Failed host lookup: smtp.example.com'), isFalse);
+      expect(isAuthFailure('Connection timed out'), isFalse);
+      expect(isAuthFailure('550 mailbox unavailable'), isFalse);
+    });
+  });
+
   group('Einstellungen', () {
     test('blendet den eingeschriebenen Brief zunaechst aus', () {
       final settings = TerminalSettings();
@@ -357,6 +373,7 @@ void main() {
         'error.title',
         'error.list',
         'error.notconfigured',
+        'error.mailauth',
         'error.mail',
         'retry',
         'close',
@@ -384,6 +401,7 @@ void main() {
         'admin.smtp.ssl',
         'admin.smtp.from',
         'admin.smtp.fromname',
+        'admin.smtp.show',
         'admin.smtp.test',
         'admin.smtp.test.ok',
         'admin.smtp.test.target',
