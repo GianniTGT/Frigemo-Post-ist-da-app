@@ -69,9 +69,19 @@ dans l'usine. Réactivable dans les réglages si le site en a l'usage.
 
 ### Liste du personnel
 
-`app/assets/employees.csv` — colonnes `name,email,department,lang`. Modifiable
-directement sur github.com, sans toucher au code ; il faut ensuite reconstruire
-l'APK pour que la tablette voie le changement.
+Deux sources possibles.
+
+**La liste livrée** — `app/assets/employees.csv`, colonnes
+`name,email,department,lang`. Modifiable directement sur github.com, sans
+toucher au code ; il faut ensuite reconstruire l'APK.
+
+**Une liste propre au terminal** — dans les réglages, « Charger un fichier
+CSV » lit un fichier depuis la tablette. Elle remplace alors la liste livrée,
+et se met à jour sans reconstruire l'APK. C'est la voie pour un deuxième site
+ou un autre client : un seul APK, chacun sa liste.
+
+Un fichier sans ligne exploitable est refusé — la liste précédente reste en
+place plutôt que de laisser la réception devant une recherche vide.
 
 **Les noms livrés sont des exemples et doivent être remplacés.**
 

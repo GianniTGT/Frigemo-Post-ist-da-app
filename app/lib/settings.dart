@@ -171,6 +171,7 @@ class TerminalSettings extends ChangeNotifier {
     String? sharedMailbox,
     SmtpConfig? smtp,
     bool askLocation = false,
+    String? staffCsv,
     SharedPreferences? store,
   })  : _kinds = List.of(kinds ?? kDefaultKinds),
         _locations = List.of(locations ?? kDefaultLocations),
@@ -178,6 +179,7 @@ class TerminalSettings extends ChangeNotifier {
         _sharedMailbox = sharedMailbox ?? '',
         _smtp = smtp ?? const SmtpConfig(),
         _askLocation = askLocation,
+        _staffCsv = staffCsv,
         _store = store;
 
   List<OptionEntry> _kinds;
@@ -186,6 +188,7 @@ class TerminalSettings extends ChangeNotifier {
   String _sharedMailbox;
   SmtpConfig _smtp;
   bool _askLocation;
+  String? _staffCsv;
   final SharedPreferences? _store;
 
   static const String _key = 'terminal.settings.v1';
@@ -204,6 +207,12 @@ class TerminalSettings extends ChangeNotifier {
   bool get hasSharedMailbox => sharedMailbox.isNotEmpty;
 
   SmtpConfig get smtp => _smtp;
+
+  /// Eigene Personalliste, am Geraet eingelesen. Null heisst: es gilt die
+  /// im APK mitgelieferte Datei. Damit braucht ein weiterer Standort kein
+  /// eigenes APK -- er liest seine Liste selbst ein.
+  String? get staffCsv => _staffCsv;
+  bool get hasOwnStaffList => (_staffCsv ?? '').trim().isNotEmpty;
 
   /// Der Fahrer weiss nicht, wo die Sendung im Werk hingehoert -- deshalb
   /// wird der Abholort standardmaessig nicht gefragt. Wer ihn doch braucht,
@@ -297,6 +306,13 @@ class TerminalSettings extends ChangeNotifier {
     _persist();
   }
 
+  /// Null setzt auf die mitgelieferte Liste zurueck.
+  void setStaffCsv(String? csv) {
+    final trimmed = csv?.trim() ?? '';
+    _staffCsv = trimmed.isEmpty ? null : trimmed;
+    _persist();
+  }
+
   /// Setzt die Auswahl zurueck. Der Versandzugang bleibt erhalten -- sonst
   /// stuende das Terminal nach einem Fehlgriff stumm, bis jemand die
   /// Zugangsdaten erneut heraussucht.
@@ -317,6 +333,7 @@ class TerminalSettings extends ChangeNotifier {
         'sharedMailbox': _sharedMailbox,
         'smtp': _smtp.toJson(),
         'askLocation': _askLocation,
+        if (_staffCsv != null) 'staffCsv': _staffCsv,
       };
 
   static TerminalSettings fromJson(
@@ -343,6 +360,7 @@ class TerminalSettings extends ChangeNotifier {
           ? SmtpConfig.fromJson(Map<String, dynamic>.from(json['smtp'] as Map))
           : const SmtpConfig(),
       askLocation: json['askLocation'] == true,
+      staffCsv: json['staffCsv']?.toString(),
       store: store,
     );
   }
