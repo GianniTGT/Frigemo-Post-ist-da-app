@@ -51,6 +51,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   /// jemand die Suche vergessen hat.
   bool _unknownRecipient = false;
 
+  /// Der Fahrer hat einen Namen vom Etikett uebernommen, der nicht in der
+  /// Liste steht. Die Meldung geht dann ans gemeinsame Postfach -- aber mit
+  /// diesem Namen, statt ihn wegzuwerfen.
+  String? _freeName;
+
   Timer? _debounce;
   Timer? _idle;
   Timer? _successTimer;
@@ -72,7 +77,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   bool get _ready =>
       _carrier != null &&
       _carrierLabel.isNotEmpty &&
-      (_recipient != null || _unknownRecipient) &&
+      (_recipient != null || _unknownRecipient || _freeName != null) &&
       !_submitting;
 
   /// Bei "Andere" zaehlt, was der Fahrer eingetippt hat. Bleibt es leer,
@@ -119,6 +124,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     if (_carrier == null &&
         _recipient == null &&
         !_unknownRecipient &&
+        _freeName == null &&
         _searchCtrl.text.isEmpty) {
       return;
     }
@@ -131,10 +137,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
   void _onSearchChanged() {
     // Sobald wieder getippt wird, ist die alte Auswahl ungültig.
-    if (_recipient != null || _unknownRecipient) {
+    if (_recipient != null || _unknownRecipient || _freeName != null) {
       setState(() {
         _recipient = null;
         _unknownRecipient = false;
+        _freeName = null;
       });
     }
 
@@ -210,6 +217,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     final draft = DeliveryDraft(
       carrierLabel: _carrierLabel,
       recipient: _recipient,
+      recipientName: _freeName,
       quantity: _quantity,
       kindLabel: widget.settings.labelOf(_kindEntry, _l, 'kind'),
       locationLabel: widget.settings.askLocation
@@ -296,6 +304,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       _recipient = null;
       _quantity = 1;
       _unknownRecipient = false;
+      _freeName = null;
       _kind = null;
       _location = null;
       _results = const [];
@@ -762,6 +771,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   Widget _recipientField() {
+    final free = _freeName;
+    if (free != null) return _freeNameCard(free);
     if (_unknownRecipient) return _unknownRecipientCard();
 
     if (_recipient != null) {
@@ -877,6 +888,75 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     );
   }
 
+  void _useFreeName(String name) {
+    _searchFocus.unfocus();
+    setState(() {
+      _freeName = name.trim();
+      _recipient = null;
+      _unknownRecipient = false;
+      _results = const [];
+      _searching = false;
+      _searchFailed = false;
+    });
+    _touch();
+  }
+
+  /// Ein Name vom Etikett, den die Liste nicht kennt.
+  Widget _freeNameCard(String name) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accent, width: 2),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.person_outline, color: AppColors.accent, size: 30),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _l.t('recipient.free.hint'),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: AppColors.inkSoft,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _freeName = null;
+                _searchCtrl.removeListener(_onSearchChanged);
+                _searchCtrl.clear();
+                _searchCtrl.addListener(_onSearchChanged);
+              });
+              _searchFocus.requestFocus();
+              _touch();
+            },
+            child: Text(
+              _l.t('search.change'),
+              style: const TextStyle(fontSize: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Auf mancher Sendung steht kein Name. Dann geht die Meldung nur an das
   /// gemeinsame Postfach – der Zustand muss aber sichtbar sein, damit ihn
   /// niemand aus Versehen stehen laesst.
@@ -952,10 +1032,21 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     if (_searching) return const SizedBox(height: 8);
 
     if (_results.isEmpty) {
+      // Der Name auf dem Paket ist das Nuetzlichste an der Meldung. Steht
+      // die Person nicht in der Liste, darf er trotzdem mitgehen.
       return _hintRow(
         Icons.person_off_outlined,
         _l.t('search.none'),
         AppColors.inkSoft,
+        action: widget.settings.hasSharedMailbox
+            ? TextButton(
+                onPressed: () => _useFreeName(query),
+                child: Text(
+                  _l.t('recipient.free', args: {'name': query}),
+                  style: const TextStyle(fontSize: 17),
+                ),
+              )
+            : null,
       );
     }
 
@@ -1251,7 +1342,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             Text(
               _recipient != null
                   ? _l.t('success.body', args: {'name': _recipient!.name})
-                  : _l.t('success.body.unknown'),
+                  : _freeName != null
+                      ? _l.t('success.body', args: {'name': _freeName!})
+                      : _l.t('success.body.unknown'),
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 20, color: AppColors.inkSoft),
             ),

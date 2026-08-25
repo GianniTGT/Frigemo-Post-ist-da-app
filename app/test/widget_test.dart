@@ -22,6 +22,7 @@ Ohne Adresse,,Production,fr
 
 DeliveryDraft _draft({
   Employee? recipient,
+  String? recipientName,
   bool urgent = false,
   String kindLabel = 'Colis',
   String? locationLabel,
@@ -31,6 +32,7 @@ DeliveryDraft _draft({
     DeliveryDraft(
       carrierLabel: 'DHL',
       recipient: recipient,
+      recipientName: recipientName,
       quantity: quantity,
       kindLabel: kindLabel,
       locationLabel: locationLabel,
@@ -136,6 +138,37 @@ void main() {
 
     test('ohne Postfach und ohne Namen gibt es keine Adresse', () {
       expect(() => composeDelivery(_draft()), throwsA(isA<ApiException>()));
+    });
+
+    // Steht der Name auf dem Paket, aber die Person nicht in der Liste,
+    // waere es Verschwendung, den Namen wegzuwerfen.
+    test('nimmt einen Namen mit, den die Liste nicht kennt', () {
+      final mail = composeDelivery(
+        _draft(recipientName: 'Beat Käser'),
+        sharedMailbox: shared,
+      );
+      expect(mail.to, [shared]);
+      expect(mail.subject, contains('Beat Käser'));
+      expect(mail.body, contains('Beat Käser'));
+      // Nicht als "unbekannt" melden -- der Name ist ja bekannt.
+      expect(mail.body, isNot(contains(fr.t('recipient.unknown'))));
+    });
+
+    test('sagt dazu, dass die Person nicht in der Liste steht', () {
+      final mail = composeDelivery(
+        _draft(recipientName: 'Beat Käser'),
+        sharedMailbox: shared,
+      );
+      expect(mail.body, contains(fr.t('mail.intro.name', args: {'name': 'Beat Käser'})));
+    });
+
+    test('die Person aus der Liste geht dem getippten Namen vor', () {
+      final mail = composeDelivery(
+        _draft(recipient: person, recipientName: 'Tippfehler'),
+        sharedMailbox: shared,
+      );
+      expect(mail.to, ['h.muster@frigemo.ch']);
+      expect(mail.body, isNot(contains('Tippfehler')));
     });
 
     test('folgt der Sprache der Person, nicht der des Terminals', () {
@@ -443,11 +476,15 @@ void main() {
         'admin.empty',
         'phone.title',
         'phone.button',
+        'recipient.free',
+        'recipient.free.hint',
         'recipient.unknown',
         'recipient.unknown.hint',
         'success.body.unknown',
         'mail.subject',
         'mail.subject.unknown',
+        'mail.subject.name',
+        'mail.intro.name',
         'mail.urgent.prefix',
         'mail.intro',
         'mail.intro.unknown',

@@ -48,8 +48,19 @@ ou un domaine propre) suffit, et son dossier « Envoyés » tient lieu d'archive
 Seul le filtre anti-spam du destinataire peut poser problème ; cela se voit dès
 le premier essai.
 
-Quand aucun nom ne figure sur le colis, « Destinataire inconnu » envoie
-l'annonce uniquement à la boîte commune.
+Trois cas pour le destinataire :
+
+- **trouvé dans la liste** — l'annonce part à cette personne, la boîte commune
+  en copie ;
+- **un nom sur le colis, absent de la liste** (nouvel employé, temporaire,
+  externe, faute de frappe sur l'étiquette) — le chauffeur reprend le nom tel
+  qu'il l'a saisi ; l'annonce part à la boîte commune **avec ce nom**, à
+  transmettre. Jeter ce nom serait perdre le plus utile de l'annonce ;
+- **aucun nom** — « Destinataire inconnu », l'annonce part uniquement à la
+  boîte commune.
+
+Les deux derniers cas exigent une boîte commune ; sans elle, ils restent
+masqués.
 
 ### Lieu de retrait
 
