@@ -178,10 +178,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Damit im Zweifel ablesbar ist, welche Fassung auf dem Geraet
             // wirklich laeuft -- eine gescheiterte Aktualisierung sieht man
             // dem Bildschirm sonst nicht an.
-            Center(
+            const Center(
               child: Text(
                 'Version ${AppConfig.appVersion}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   color: AppColors.inkSoft,
                 ),
@@ -691,12 +691,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _importStaff() async {
     // Android filtert .csv ueber die Endung nicht zuverlaessig, deshalb
     // ohne Einschraenkung waehlen lassen.
-    final result = await FilePicker.platform.pickFiles(withData: true);
-    if (!mounted || result == null) return;
+    final file = await FilePicker.pickFile();
+    if (!mounted || file == null) return;
 
-    final bytes = result.files.single.bytes;
-    if (bytes == null) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
 
+    // allowMalformed, damit eine aus Excel exportierte Datei mit fremder
+    // Zeichenkodierung nicht am ersten Umlaut scheitert.
     final text = utf8.decode(bytes, allowMalformed: true);
     final parsed = employeesFromCsv(text);
     final messenger = ScaffoldMessenger.of(context);
