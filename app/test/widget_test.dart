@@ -522,10 +522,39 @@ void main() {
       );
     });
 
+    test('loescht nur ueberholte Listen-Mails, nie die neuste', () {
+      MimeMessage mail(int id, String subject, DateTime date, String body) {
+        final message = MessageBuilder.buildSimpleTextMessage(
+          const MailAddress('Verwaltung', 'admin@example.com'),
+          [const MailAddress('Terminal', 'update@example.com')],
+          body,
+          subject: subject,
+          date: date,
+        );
+        message.sequenceId = id;
+        return message;
+      }
+
+      final now = DateTime.now();
+      final messages = [
+        // Alte Liste: darf weg.
+        mail(1, 'LISTE geheim123', now.subtract(const Duration(days: 9)), _csv),
+        // Fremde Mail ohne Code: bleibt unangetastet.
+        mail(2, 'Newsletter', now.subtract(const Duration(days: 5)), 'Hallo'),
+        // Neuste gueltige Liste: bleibt liegen.
+        mail(3, 'LISTE geheim123', now, _csv),
+      ];
+
+      expect(supersededUpdateMailIds(messages, code: 'geheim123'), [1]);
+      // Ohne einzige gueltige Liste wird gar nichts geloescht.
+      expect(supersededUpdateMailIds(messages, code: 'anderer'), isEmpty);
+    });
+
     test('Postfach-Zugang: Standardwerte und Speichern', () {
       const imap = ImapConfig();
       expect(imap.port, 993);
       expect(imap.ssl, isTrue);
+      expect(imap.autoClean, isTrue);
       expect(imap.isComplete, isFalse);
 
       final settings = TerminalSettings();
@@ -537,9 +566,12 @@ void main() {
           ));
       expect(settings.imap.isComplete, isTrue);
 
+      settings.updateImap((s) => s.copyWith(autoClean: false));
+
       final restored = TerminalSettings.fromJson(settings.toJson());
       expect(restored.imap.host, 'imap.example.com');
       expect(restored.imap.secret, 'geheim123');
+      expect(restored.imap.autoClean, isFalse);
 
       // Wie der Versandzugang uebersteht er das Zuruecksetzen.
       settings.resetToDefaults();
@@ -654,6 +686,8 @@ void main() {
         'admin.mailupdate.user',
         'admin.mailupdate.ssl',
         'admin.mailupdate.secret',
+        'admin.mailupdate.clean',
+        'admin.mailupdate.clean.hint',
         'admin.mailupdate.check',
         'admin.mailupdate.ok',
         'admin.mailupdate.none',
