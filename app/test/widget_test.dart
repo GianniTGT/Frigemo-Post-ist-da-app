@@ -27,6 +27,7 @@ DeliveryDraft _draft({
   String kindLabel = 'Colis',
   String? locationLabel,
   String note = '',
+  String trackingCode = '',
   int quantity = 1,
 }) =>
     DeliveryDraft(
@@ -38,28 +39,34 @@ DeliveryDraft _draft({
       locationLabel: locationLabel,
       urgent: urgent,
       note: note,
+      trackingCode: trackingCode,
       terminalLang: AppLang.fr,
     );
 
 void main() {
   const fr = L10n(AppLang.fr);
   const de = L10n(AppLang.de);
+  const en = L10n(AppLang.en);
 
   group('LocaleController', () {
     test('leitet die Sprache aus dem Code ab', () {
       expect(LocaleController.fromCode('de'), AppLang.de);
       expect(LocaleController.fromCode('DE-CH'), AppLang.de);
       expect(LocaleController.fromCode('fr'), AppLang.fr);
+      expect(LocaleController.fromCode('en'), AppLang.en);
+      expect(LocaleController.fromCode('EN-GB'), AppLang.en);
       // Alles Unbekannte faellt auf Franzoesisch zurueck -- Standardsprache
       // des Terminals in Cressier.
       expect(LocaleController.fromCode('it'), AppLang.fr);
       expect(LocaleController.fromCode(''), AppLang.fr);
     });
 
-    test('schaltet zwischen den beiden Sprachen um', () {
+    test('schaltet der Reihe nach durch alle Sprachen', () {
       final controller = LocaleController(AppLang.fr);
       controller.toggle();
       expect(controller.value, AppLang.de);
+      controller.toggle();
+      expect(controller.value, AppLang.en);
       controller.toggle();
       expect(controller.value, AppLang.fr);
     });
@@ -219,6 +226,34 @@ void main() {
     test('laesst die Bemerkungszeile weg, wenn nichts drinsteht', () {
       final mail = composeDelivery(_draft(recipient: person));
       expect(mail.body, isNot(contains(de.t('mail.note'))));
+    });
+
+    // Die Sendungsnummer kommt von der Kamera, nicht von Hand -- gescannt
+    // steht sie in der Meldung, ohne Scan fehlt auch die Zeile.
+    test('nimmt die gescannte Sendungsnummer mit', () {
+      final mail = composeDelivery(
+        _draft(recipient: person, trackingCode: '99.60.131482.38551546'),
+      );
+      expect(mail.body, contains('99.60.131482.38551546'));
+      expect(mail.body, contains(de.t('tracking.label')));
+    });
+
+    test('laesst die Sendungsnummer weg, wenn nicht gescannt wurde', () {
+      final mail = composeDelivery(_draft(recipient: person));
+      expect(mail.body, isNot(contains(de.t('tracking.label'))));
+    });
+
+    test('meldet einen englischsprachigen Empfaenger auf Englisch', () {
+      const english = Employee(
+        id: '9',
+        name: 'John Carter',
+        email: 'j.carter@frigemo.ch',
+        department: 'Logistics',
+        lang: AppLang.en,
+      );
+      final mail = composeDelivery(_draft(recipient: english));
+      expect(mail.subject, contains('Delivery for you'));
+      expect(mail.body, contains(en.t('mail.footer')));
     });
   });
 
@@ -409,11 +444,13 @@ void main() {
   });
 
   group('L10n', () {
-    test('liefert die Texte in beiden Sprachen', () {
+    test('liefert die Texte in allen Sprachen', () {
       expect(fr.t('send'), 'Envoyer la notification');
       expect(de.t('send'), 'Benachrichtigung senden');
+      expect(en.t('send'), 'Send notification');
       expect(fr.code, 'fr');
       expect(de.code, 'de');
+      expect(en.code, 'en');
     });
 
     test('setzt Platzhalter ein', () {
@@ -429,7 +466,7 @@ void main() {
     // Fehlt eine Sprache zu einem Schluessel, liefert t() den Schluessel
     // selbst -- auf dem Terminal stuende dann 'error.network' statt eines
     // Satzes. Dieser Test faengt das ab, bevor es jemand am Empfang sieht.
-    test('kennt jeden Schluessel in beiden Sprachen', () {
+    test('kennt jeden Schluessel in allen Sprachen', () {
       const keys = [
         'app.title',
         'app.subtitle',
@@ -456,6 +493,11 @@ void main() {
         'location.coldroom',
         'note.label',
         'chilled.warning',
+        'scan.button',
+        'scan.title',
+        'scan.hint',
+        'scan.error',
+        'tracking.label',
         'send',
         'sending',
         'success.title',
@@ -536,6 +578,7 @@ void main() {
       for (final key in keys) {
         expect(fr.t(key), isNot(key), reason: 'FR fehlt zu: $key');
         expect(de.t(key), isNot(key), reason: 'DE fehlt zu: $key');
+        expect(en.t(key), isNot(key), reason: 'EN fehlt zu: $key');
       }
     });
   });

@@ -8,6 +8,7 @@ import '../config.dart';
 import '../l10n.dart';
 import '../main.dart' show AppColors;
 import '../settings.dart';
+import 'scan_screen.dart';
 import 'settings_screen.dart';
 
 class DeliveryScreen extends StatefulWidget {
@@ -55,6 +56,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   /// Liste steht. Die Meldung geht dann ans gemeinsame Postfach -- aber mit
   /// diesem Namen, statt ihn wegzuwerfen.
   String? _freeName;
+
+  /// Gescannte Sendungsnummer. Leer heisst: nicht gescannt -- der Scan ist
+  /// freiwillig und haelt den Sendeknopf nicht auf.
+  String _tracking = '';
 
   Timer? _debounce;
   Timer? _idle;
@@ -126,6 +131,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         _recipient == null &&
         !_unknownRecipient &&
         _freeName == null &&
+        _tracking.isEmpty &&
         _searchCtrl.text.isEmpty) {
       return;
     }
@@ -226,6 +232,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           : null,
       urgent: _kindEntry.urgent,
       note: _noteCtrl.text.trim(),
+      trackingCode: _tracking,
       terminalLang: widget.locale.value,
     );
 
@@ -306,6 +313,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       _quantity = 1;
       _unknownRecipient = false;
       _freeName = null;
+      _tracking = '';
       _kind = null;
       _location = null;
       _results = const [];
@@ -409,6 +417,22 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     );
   }
 
+  // --- Barcode ---------------------------------------------------------
+
+  /// Oeffnet die Kamera und uebernimmt die erste erkannte Sendungsnummer.
+  /// Abbrechen laesst alles beim Alten -- der Scan ist freiwillig.
+  Future<void> _scanBarcode() async {
+    _touch();
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (_) => ScanScreen(locale: widget.locale),
+      ),
+    );
+    if (!mounted || code == null || code.isEmpty) return;
+    setState(() => _tracking = code);
+    _touch();
+  }
+
   // --- Telefon ---------------------------------------------------------
 
   Future<void> _call(String number) async {
@@ -445,7 +469,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                     child: Icon(Icons.call, color: Colors.white, size: 26),
                   ),
                   title: Text(
-                    widget.locale.value == AppLang.fr ? c.labelFr : c.labelDe,
+                    switch (widget.locale.value) {
+                      AppLang.fr => c.labelFr,
+                      AppLang.de => c.labelDe,
+                      AppLang.en => c.labelEn,
+                    },
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 18,
@@ -1195,6 +1223,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             ),
           ],
           const SizedBox(height: 22),
+          _trackingField(),
+          const SizedBox(height: 22),
           TextField(
             controller: _noteCtrl,
             maxLength: 120,
@@ -1210,6 +1240,78 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
             ),
             onChanged: (_) => _touch(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Ohne Nummer ein Scan-Knopf, mit Nummer die Anzeige samt Entfernen.
+  /// Nochmals scannen ersetzt die Nummer -- pro Meldung gilt eine Sendung.
+  Widget _trackingField() {
+    if (_tracking.isEmpty) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.ink,
+            side: const BorderSide(color: AppColors.line, width: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          onPressed: _scanBarcode,
+          icon: const Icon(Icons.qr_code_scanner, size: 24),
+          label: Text(
+            _l.t('scan.button'),
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.qr_code_2, size: 26, color: AppColors.inkSoft),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _l.t('tracking.label'),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.inkSoft,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  _tracking,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: _l.t('admin.delete'),
+            onPressed: () {
+              setState(() => _tracking = '');
+              _touch();
+            },
+            icon: const Icon(Icons.close, size: 24, color: AppColors.inkSoft),
           ),
         ],
       ),
