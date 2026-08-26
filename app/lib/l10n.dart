@@ -367,6 +367,61 @@ class L10n {
       AppLang.de: 'Keine brauchbare Zeile – die bisherige Liste bleibt bestehen.',
       AppLang.en: 'No usable row — the previous list stays in place.',
     },
+    'admin.mailupdate': {
+      AppLang.fr: 'Mise à jour de la liste par e-mail',
+      AppLang.de: 'Listen-Update per E-Mail',
+      AppLang.en: 'List update by e-mail',
+    },
+    'admin.mailupdate.hint': {
+      AppLang.fr: 'Le terminal relève cette boîte et reprend la liste des e-mails dont l’objet contient le code — CSV en pièce jointe ou dans le texte.',
+      AppLang.de: 'Das Terminal ruft dieses Postfach ab und übernimmt die Liste aus E-Mails, deren Betreff den Code enthält – CSV als Anhang oder im Text.',
+      AppLang.en: 'The terminal checks this mailbox and takes the list from e-mails whose subject contains the code – CSV as attachment or in the text.',
+    },
+    'admin.mailupdate.user': {
+      AppLang.fr: 'Utilisateur',
+      AppLang.de: 'Benutzer',
+      AppLang.en: 'User',
+    },
+    'admin.mailupdate.ssl': {
+      AppLang.fr: 'SSL (port 993)',
+      AppLang.de: 'SSL (Port 993)',
+      AppLang.en: 'SSL (port 993)',
+    },
+    'admin.mailupdate.secret': {
+      AppLang.fr: 'Code secret (objet de l’e-mail)',
+      AppLang.de: 'Geheimcode (im Betreff)',
+      AppLang.en: 'Secret code (in the subject)',
+    },
+    'admin.mailupdate.check': {
+      AppLang.fr: 'Vérifier maintenant',
+      AppLang.de: 'Jetzt prüfen',
+      AppLang.en: 'Check now',
+    },
+    'admin.mailupdate.ok': {
+      AppLang.fr: '{count} personnes reprises de l’e-mail.',
+      AppLang.de: '{count} Personen aus der E-Mail übernommen.',
+      AppLang.en: '{count} people taken from the e-mail.',
+    },
+    'admin.mailupdate.none': {
+      AppLang.fr: 'Aucun nouvel e-mail avec le code.',
+      AppLang.de: 'Keine neue E-Mail mit dem Code.',
+      AppLang.en: 'No new e-mail with the code.',
+    },
+    'admin.mailupdate.fail': {
+      AppLang.fr: 'Relève impossible : {error}',
+      AppLang.de: 'Abruf fehlgeschlagen: {error}',
+      AppLang.en: 'Check failed: {error}',
+    },
+    'mailupdate.confirm.subject': {
+      AppLang.fr: 'Liste du personnel mise à jour – {count} personnes – {terminal}',
+      AppLang.de: 'Personalliste aktualisiert – {count} Personen – {terminal}',
+      AppLang.en: 'Staff list updated – {count} people – {terminal}',
+    },
+    'mailupdate.confirm.body': {
+      AppLang.fr: 'Le terminal {terminal} a repris {count} personnes de votre e-mail.',
+      AppLang.de: 'Das Terminal {terminal} hat {count} Personen aus Ihrer E-Mail übernommen.',
+      AppLang.en: 'Terminal {terminal} has taken over {count} people from your e-mail.',
+    },
     'admin.smtp': {
       AppLang.fr: 'Envoi des e-mails',
       AppLang.de: 'E-Mail-Versand',

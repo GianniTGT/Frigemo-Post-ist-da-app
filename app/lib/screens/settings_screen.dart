@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import '../api_service.dart';
 import '../config.dart';
 import '../l10n.dart';
+import '../mail_update.dart';
 import '../main.dart' show AppColors;
 import '../settings.dart';
 
@@ -45,8 +46,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       TextEditingController(text: widget.settings.smtp.fromAddress);
   late final TextEditingController _fromName =
       TextEditingController(text: widget.settings.smtp.fromName);
+  late final TextEditingController _imapHost =
+      TextEditingController(text: widget.settings.imap.host);
+  late final TextEditingController _imapPort =
+      TextEditingController(text: '${widget.settings.imap.port}');
+  late final TextEditingController _imapUser =
+      TextEditingController(text: widget.settings.imap.user);
+  late final TextEditingController _imapPassword =
+      TextEditingController(text: widget.settings.imap.password);
+  late final TextEditingController _imapSecret =
+      TextEditingController(text: widget.settings.imap.secret);
 
   bool _testing = false;
+  bool _checkingMail = false;
 
   /// Auf einer Bildschirmtastatur vertippt man sich leicht, und ein
   /// verdecktes Passwort verraet den Fehler nicht.
@@ -84,6 +96,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _password,
       _from,
       _fromName,
+      _imapHost,
+      _imapPort,
+      _imapUser,
+      _imapPassword,
+      _imapSecret,
     ]) {
       controller.dispose();
     }
@@ -152,6 +169,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _terminalCard(),
             const SizedBox(height: 20),
             _staffCard(),
+            const SizedBox(height: 20),
+            _mailUpdateCard(),
             const SizedBox(height: 20),
             _smtpCard(),
             const SizedBox(height: 20),
@@ -484,6 +503,107 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
 
+  /// Das Terminal ruft das Update-Postfach selbst ab -- die Liste laesst
+  /// sich damit aus der Ferne pflegen, ohne die IT des Kunden.
+  Widget _mailUpdateCard() {
+    final checkButton = FilledButton.icon(
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.accent,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      ),
+      onPressed:
+          _checkingMail || !widget.settings.imap.isComplete ? null : _checkMail,
+      icon: _checkingMail
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.mark_email_read_outlined, size: 22),
+      label: Text(
+        _l.t('admin.mailupdate.check'),
+        style: const TextStyle(fontSize: 17),
+      ),
+    );
+
+    final sslSwitch = SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        _l.t('admin.mailupdate.ssl'),
+        style: const TextStyle(fontSize: 16),
+      ),
+      value: widget.settings.imap.ssl,
+      onChanged: (v) => setState(
+          () => widget.settings.updateImap((s) => s.copyWith(ssl: v))),
+    );
+
+    final portField = _field(
+      _l.t('admin.smtp.port'),
+      _imapPort,
+      numeric: true,
+      onChanged: (v) => widget.settings.updateImap(
+        (s) => s.copyWith(port: int.tryParse(v) ?? s.port),
+      ),
+    );
+
+    final roomy = MediaQuery.sizeOf(context).width >= 600;
+
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _heading(_l.t('admin.mailupdate')),
+          const SizedBox(height: 6),
+          Text(
+            _l.t('admin.mailupdate.hint'),
+            style: const TextStyle(fontSize: 15, color: AppColors.inkSoft),
+          ),
+          const SizedBox(height: 14),
+          _field(_l.t('admin.smtp.host'), _imapHost,
+              onChanged: (v) => setState(() =>
+                  widget.settings.updateImap((s) => s.copyWith(host: v)))),
+          if (roomy)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: 160, child: portField),
+                const SizedBox(width: 16),
+                Expanded(child: sslSwitch),
+              ],
+            )
+          else ...[
+            portField,
+            sslSwitch,
+          ],
+          _field(_l.t('admin.mailupdate.user'), _imapUser,
+              onChanged: (v) => setState(() =>
+                  widget.settings.updateImap((s) => s.copyWith(user: v)))),
+          _field(
+            _l.t('admin.smtp.password'),
+            _imapPassword,
+            obscure: !_showPassword,
+            suffix: IconButton(
+              tooltip: _l.t('admin.smtp.show'),
+              icon: Icon(
+                _showPassword ? Icons.visibility_off : Icons.visibility,
+              ),
+              onPressed: () => setState(() => _showPassword = !_showPassword),
+            ),
+            onChanged: (v) =>
+                widget.settings.updateImap((s) => s.copyWith(password: v)),
+          ),
+          _field(_l.t('admin.mailupdate.secret'), _imapSecret,
+              onChanged: (v) => setState(() =>
+                  widget.settings.updateImap((s) => s.copyWith(secret: v)))),
+          SizedBox(width: double.infinity, child: checkButton),
+        ],
+      ),
+    );
+  }
+
   Widget _locationCard() => _card(
         child: SwitchListTile(
           contentPadding: EdgeInsets.zero,
@@ -756,6 +876,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _l.t('admin.staff.ok', args: {'count': '${parsed.length}'}),
         ),
       ),
+    );
+  }
+
+  /// Ruft das Update-Postfach von Hand ab -- so laesst sich die Einrichtung
+  /// sofort pruefen, statt auf den naechsten Hintergrundabruf zu warten.
+  Future<void> _checkMail() async {
+    setState(() => _checkingMail = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final terminal = widget.settings.hasTerminalName
+        ? widget.settings.terminalName
+        : 'Terminal';
+
+    String result;
+    try {
+      final count = await applyStaffUpdate(
+        widget.settings,
+        ApiService(),
+        confirmTexts: L10nLookup(
+          subject: (count) => _l.t('mailupdate.confirm.subject',
+              args: {'count': '$count', 'terminal': terminal}),
+          body: (count) => _l.t('mailupdate.confirm.body',
+              args: {'count': '$count', 'terminal': terminal}),
+        ),
+      );
+      if (count != null) {
+        await _countStaff();
+        result = _l.t('admin.mailupdate.ok', args: {'count': '$count'});
+      } else {
+        result = _l.t('admin.mailupdate.none');
+      }
+    } catch (e) {
+      result = _l.t('admin.mailupdate.fail', args: {'error': '$e'});
+    }
+
+    if (!mounted) return;
+    setState(() => _checkingMail = false);
+    messenger.showSnackBar(
+      SnackBar(content: Text(result), duration: const Duration(seconds: 6)),
     );
   }
 

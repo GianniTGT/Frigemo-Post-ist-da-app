@@ -163,6 +163,74 @@ class SmtpConfig {
       );
 }
 
+/// Zugang zum Update-Postfach: das Terminal ruft es selbst ab und uebernimmt
+/// die Personalliste aus E-Mails, deren Betreff den Geheimcode enthaelt.
+/// So laesst sich die Liste aus der Ferne pflegen, ohne die IT des Kunden.
+class ImapConfig {
+  final String host;
+  final int port;
+  final String user;
+  final String password;
+
+  /// true = IMAPS (Port 993). Ein Update-Postfach liegt im Internet,
+  /// deshalb ist verschluesselt der Standard.
+  final bool ssl;
+
+  /// Nur E-Mails, deren Betreff diesen Code enthaelt, werden beachtet.
+  /// Der Absender ist faelschbar -- der Code nicht erratbar.
+  final String secret;
+
+  const ImapConfig({
+    this.host = '',
+    this.port = 993,
+    this.user = '',
+    this.password = '',
+    this.ssl = true,
+    this.secret = '',
+  });
+
+  /// Ohne Server, Benutzer und Geheimcode wird nichts abgerufen.
+  bool get isComplete =>
+      host.trim().isNotEmpty &&
+      user.trim().isNotEmpty &&
+      secret.trim().isNotEmpty;
+
+  ImapConfig copyWith({
+    String? host,
+    int? port,
+    String? user,
+    String? password,
+    bool? ssl,
+    String? secret,
+  }) =>
+      ImapConfig(
+        host: host ?? this.host,
+        port: port ?? this.port,
+        user: user ?? this.user,
+        password: password ?? this.password,
+        ssl: ssl ?? this.ssl,
+        secret: secret ?? this.secret,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'host': host,
+        'port': port,
+        'user': user,
+        'password': password,
+        'ssl': ssl,
+        'secret': secret,
+      };
+
+  static ImapConfig fromJson(Map<String, dynamic> json) => ImapConfig(
+        host: (json['host'] ?? '').toString(),
+        port: int.tryParse('${json['port']}') ?? 993,
+        user: (json['user'] ?? '').toString(),
+        password: (json['password'] ?? '').toString(),
+        ssl: json['ssl'] != false,
+        secret: (json['secret'] ?? '').toString(),
+      );
+}
+
 class TerminalSettings extends ChangeNotifier {
   TerminalSettings({
     List<OptionEntry>? kinds,
@@ -173,6 +241,8 @@ class TerminalSettings extends ChangeNotifier {
     bool askLocation = false,
     String? staffCsv,
     String? terminalName,
+    ImapConfig? imap,
+    int? staffMailDate,
     SharedPreferences? store,
   })  : _kinds = List.of(kinds ?? kDefaultKinds),
         _locations = List.of(locations ?? kDefaultLocations),
@@ -182,6 +252,8 @@ class TerminalSettings extends ChangeNotifier {
         _askLocation = askLocation,
         _staffCsv = staffCsv,
         _terminalName = terminalName ?? '',
+        _imap = imap ?? const ImapConfig(),
+        _staffMailDate = staffMailDate,
         _store = store;
 
   List<OptionEntry> _kinds;
@@ -192,6 +264,12 @@ class TerminalSettings extends ChangeNotifier {
   bool _askLocation;
   String? _staffCsv;
   String _terminalName;
+  ImapConfig _imap;
+
+  /// Zeitstempel (Millisekunden) der zuletzt uebernommenen Update-Mail.
+  /// Jede Tablette merkt sich das selbst -- die Mail bleibt im Postfach
+  /// liegen, damit weitere Terminals sie ebenfalls uebernehmen koennen.
+  int? _staffMailDate;
   final SharedPreferences? _store;
 
   static const String _key = 'terminal.settings.v1';
@@ -227,6 +305,13 @@ class TerminalSettings extends ChangeNotifier {
   /// wo die Sendung abgegeben wurde. Leer heisst: keine Zeile.
   String get terminalName => _terminalName.trim();
   bool get hasTerminalName => terminalName.isNotEmpty;
+
+  ImapConfig get imap => _imap;
+
+  DateTime? get staffMailDate {
+    final millis = _staffMailDate;
+    return millis == null ? null : DateTime.fromMillisecondsSinceEpoch(millis);
+  }
 
   List<OptionEntry> get visibleKinds =>
       _kinds.where((e) => e.visible).toList(growable: false);
@@ -320,6 +405,16 @@ class TerminalSettings extends ChangeNotifier {
     _persist();
   }
 
+  void updateImap(ImapConfig Function(ImapConfig) change) {
+    _imap = change(_imap);
+    _persist();
+  }
+
+  void setStaffMailDate(DateTime? value) {
+    _staffMailDate = value?.millisecondsSinceEpoch;
+    _persist();
+  }
+
   /// Null setzt auf die mitgelieferte Liste zurueck.
   void setStaffCsv(String? csv) {
     final trimmed = csv?.trim() ?? '';
@@ -348,6 +443,8 @@ class TerminalSettings extends ChangeNotifier {
         'smtp': _smtp.toJson(),
         'askLocation': _askLocation,
         'terminalName': _terminalName,
+        'imap': _imap.toJson(),
+        if (_staffMailDate != null) 'staffMailDate': _staffMailDate,
         if (_staffCsv != null) 'staffCsv': _staffCsv,
       };
 
@@ -377,6 +474,10 @@ class TerminalSettings extends ChangeNotifier {
       askLocation: json['askLocation'] == true,
       staffCsv: json['staffCsv']?.toString(),
       terminalName: (json['terminalName'] ?? '').toString(),
+      imap: json['imap'] is Map
+          ? ImapConfig.fromJson(Map<String, dynamic>.from(json['imap'] as Map))
+          : const ImapConfig(),
+      staffMailDate: int.tryParse('${json['staffMailDate']}'),
       store: store,
     );
   }
