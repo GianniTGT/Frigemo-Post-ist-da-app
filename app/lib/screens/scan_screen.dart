@@ -47,7 +47,47 @@ class _ScanScreenState extends State<ScanScreen> {
       ),
       body: Stack(
         children: [
-          MobileScanner(onDetect: _onDetect),
+          MobileScanner(
+            onDetect: _onDetect,
+            // Der eingebaute Fehlerbildschirm zeigt im Release immer nur
+            // "An unexpected error occurred" -- ohne den wirklichen Grund
+            // laesst sich am Empfang nichts beheben.
+            errorBuilder: (context, error, child) {
+              final denied =
+                  error.errorCode == MobileScannerErrorCode.permissionDenied;
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        denied ? Icons.no_photography : Icons.error_outline,
+                        color: Colors.white,
+                        size: 56,
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        _l.t(denied ? 'scan.permission' : 'scan.error'),
+                        textAlign: TextAlign.center,
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 19),
+                      ),
+                      const SizedBox(height: 12),
+                      // Fuer die Fehlersuche am Telefon: der technische Code.
+                      Text(
+                        error.errorCode.name,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
