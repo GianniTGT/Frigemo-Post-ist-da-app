@@ -172,6 +172,7 @@ class TerminalSettings extends ChangeNotifier {
     SmtpConfig? smtp,
     bool askLocation = false,
     String? staffCsv,
+    String? terminalName,
     SharedPreferences? store,
   })  : _kinds = List.of(kinds ?? kDefaultKinds),
         _locations = List.of(locations ?? kDefaultLocations),
@@ -180,6 +181,7 @@ class TerminalSettings extends ChangeNotifier {
         _smtp = smtp ?? const SmtpConfig(),
         _askLocation = askLocation,
         _staffCsv = staffCsv,
+        _terminalName = terminalName ?? '',
         _store = store;
 
   List<OptionEntry> _kinds;
@@ -189,6 +191,7 @@ class TerminalSettings extends ChangeNotifier {
   SmtpConfig _smtp;
   bool _askLocation;
   String? _staffCsv;
+  String _terminalName;
   final SharedPreferences? _store;
 
   static const String _key = 'terminal.settings.v1';
@@ -218,6 +221,12 @@ class TerminalSettings extends ChangeNotifier {
   /// wird der Abholort standardmaessig nicht gefragt. Wer ihn doch braucht,
   /// schaltet ihn in der Verwaltung ein.
   bool get askLocation => _askLocation;
+
+  /// Name dieses Terminals, z. B. "F11" oder "Réception". Steht in jeder
+  /// Meldung -- so bleibt bei mehreren Terminals in einem Werk erkennbar,
+  /// wo die Sendung abgegeben wurde. Leer heisst: keine Zeile.
+  String get terminalName => _terminalName.trim();
+  bool get hasTerminalName => terminalName.isNotEmpty;
 
   List<OptionEntry> get visibleKinds =>
       _kinds.where((e) => e.visible).toList(growable: false);
@@ -306,6 +315,11 @@ class TerminalSettings extends ChangeNotifier {
     _persist();
   }
 
+  void setTerminalName(String value) {
+    _terminalName = value.trim();
+    _persist();
+  }
+
   /// Null setzt auf die mitgelieferte Liste zurueck.
   void setStaffCsv(String? csv) {
     final trimmed = csv?.trim() ?? '';
@@ -313,9 +327,9 @@ class TerminalSettings extends ChangeNotifier {
     _persist();
   }
 
-  /// Setzt die Auswahl zurueck. Der Versandzugang bleibt erhalten -- sonst
-  /// stuende das Terminal nach einem Fehlgriff stumm, bis jemand die
-  /// Zugangsdaten erneut heraussucht.
+  /// Setzt die Auswahl zurueck. Der Versandzugang und der Terminal-Name
+  /// bleiben erhalten -- sonst stuende das Terminal nach einem Fehlgriff
+  /// stumm oder namenlos, bis jemand beides erneut heraussucht.
   void resetToDefaults() {
     _kinds = List.of(kDefaultKinds);
     _locations = List.of(kDefaultLocations);
@@ -333,6 +347,7 @@ class TerminalSettings extends ChangeNotifier {
         'sharedMailbox': _sharedMailbox,
         'smtp': _smtp.toJson(),
         'askLocation': _askLocation,
+        'terminalName': _terminalName,
         if (_staffCsv != null) 'staffCsv': _staffCsv,
       };
 
@@ -361,6 +376,7 @@ class TerminalSettings extends ChangeNotifier {
           : const SmtpConfig(),
       askLocation: json['askLocation'] == true,
       staffCsv: json['staffCsv']?.toString(),
+      terminalName: (json['terminalName'] ?? '').toString(),
       store: store,
     );
   }

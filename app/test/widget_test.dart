@@ -28,6 +28,7 @@ DeliveryDraft _draft({
   String? locationLabel,
   String note = '',
   String trackingCode = '',
+  String terminalName = '',
   int quantity = 1,
 }) =>
     DeliveryDraft(
@@ -40,6 +41,7 @@ DeliveryDraft _draft({
       urgent: urgent,
       note: note,
       trackingCode: trackingCode,
+      terminalName: terminalName,
       terminalLang: AppLang.fr,
     );
 
@@ -243,6 +245,16 @@ void main() {
       expect(mail.body, isNot(contains(de.t('tracking.label'))));
     });
 
+    // Mehrere Terminals im selben Werk: der Name sagt, wo die Sendung
+    // abgegeben wurde. Ohne gesetzten Namen fehlt auch die Zeile.
+    test('nennt das Terminal, wenn ein Name gesetzt ist', () {
+      final mail = composeDelivery(_draft(recipient: person, terminalName: 'F11'));
+      expect(mail.body, contains('${de.t('mail.terminal')}: F11'));
+
+      final ohne = composeDelivery(_draft(recipient: person));
+      expect(ohne.body, isNot(contains('${de.t('mail.terminal')}:')));
+    });
+
     test('meldet einen englischsprachigen Empfaenger auf Englisch', () {
       const english = Employee(
         id: '9',
@@ -383,6 +395,22 @@ void main() {
       // Auch eine leere Datei zaehlt nicht als eigene Liste.
       settings.setStaffCsv('   ');
       expect(settings.hasOwnStaffList, isFalse);
+    });
+
+    test('merkt sich den Terminal-Namen und behaelt ihn beim Zuruecksetzen', () {
+      final settings = TerminalSettings();
+      expect(settings.hasTerminalName, isFalse);
+
+      settings.setTerminalName('  F11  ');
+      expect(settings.terminalName, 'F11');
+
+      final restored = TerminalSettings.fromJson(settings.toJson());
+      expect(restored.terminalName, 'F11');
+
+      // Wie der Versandzugang: die Identitaet des Geraets uebersteht ein
+      // Zuruecksetzen der Auswahl.
+      settings.resetToDefaults();
+      expect(settings.terminalName, 'F11');
     });
 
     test('fragt den Abholort standardmaessig nicht', () {
@@ -548,6 +576,8 @@ void main() {
         'admin.smtp.test',
         'admin.smtp.test.ok',
         'admin.smtp.test.target',
+        'admin.terminal',
+        'admin.terminal.hint',
         'admin.location.ask',
         'admin.location.hint',
         'admin.save',
@@ -566,6 +596,7 @@ void main() {
         'mail.urgent.prefix',
         'mail.intro',
         'mail.intro.unknown',
+        'mail.terminal',
         'mail.carrier',
         'mail.recipient',
         'mail.note',

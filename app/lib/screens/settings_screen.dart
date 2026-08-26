@@ -29,6 +29,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  late final TextEditingController _terminalName =
+      TextEditingController(text: widget.settings.terminalName);
   late final TextEditingController _mailbox =
       TextEditingController(text: widget.settings.sharedMailbox);
   late final TextEditingController _host =
@@ -74,6 +76,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     for (final controller in [
+      _terminalName,
       _mailbox,
       _host,
       _port,
@@ -146,6 +149,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
+            _terminalCard(),
+            const SizedBox(height: 20),
             _staffCard(),
             const SizedBox(height: 20),
             _smtpCard(),
@@ -208,6 +213,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _heading(String text) => Text(
         text,
         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+      );
+
+  /// Bei mehreren Terminals im selben Werk sagt der Name, wo die Sendung
+  /// abgegeben wurde -- er steht in jeder Meldung.
+  Widget _terminalCard() => _card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _heading(_l.t('admin.terminal')),
+            const SizedBox(height: 6),
+            Text(
+              _l.t('admin.terminal.hint'),
+              style: const TextStyle(fontSize: 15, color: AppColors.inkSoft),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _terminalName,
+              autocorrect: false,
+              textCapitalization: TextCapitalization.words,
+              style: const TextStyle(fontSize: 19),
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                hintText: 'F11',
+              ),
+              onChanged: (value) =>
+                  setState(() => widget.settings.setTerminalName(value)),
+            ),
+          ],
+        ),
       );
 
   Widget _mailboxCard() => _card(

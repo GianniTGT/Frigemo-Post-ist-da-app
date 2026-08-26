@@ -233,6 +233,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       urgent: _kindEntry.urgent,
       note: _noteCtrl.text.trim(),
       trackingCode: _tracking,
+      terminalName: widget.settings.terminalName,
       terminalLang: widget.locale.value,
     );
 

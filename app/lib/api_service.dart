@@ -64,6 +64,10 @@ class DeliveryDraft {
   /// der Scan ist freiwillig, eine Meldung ohne Nummer bleibt gueltig.
   final String trackingCode;
 
+  /// Name des Terminals, an dem gemeldet wurde (z. B. "F11"). Leer, wenn in
+  /// der Verwaltung keiner gesetzt ist -- dann fehlt auch die Zeile.
+  final String terminalName;
+
   /// Sprache, in der gemeldet wird, wenn es keinen Empfaenger gibt.
   final AppLang terminalLang;
 
@@ -77,6 +81,7 @@ class DeliveryDraft {
     required this.urgent,
     required this.note,
     this.trackingCode = '',
+    this.terminalName = '',
     required this.terminalLang,
   });
 }
@@ -292,6 +297,8 @@ MailContent composeDelivery(
     else
       l.t('mail.intro.unknown'),
     '',
+    if (draft.terminalName.isNotEmpty)
+      '${l.t('mail.terminal')}: ${draft.terminalName}',
     '${l.t('mail.carrier')}: ${draft.carrierLabel}',
     '${l.t('quantity')}: ${draft.quantity}',
     '${l.t('kind.label')}: ${draft.kindLabel}',

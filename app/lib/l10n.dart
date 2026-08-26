@@ -432,6 +432,16 @@ class L10n {
       AppLang.de: 'Der Test geht an die Absenderadresse.',
       AppLang.en: 'The test goes to the sender address.',
     },
+    'admin.terminal': {
+      AppLang.fr: 'Nom de ce terminal',
+      AppLang.de: 'Name dieses Terminals',
+      AppLang.en: 'Name of this terminal',
+    },
+    'admin.terminal.hint': {
+      AppLang.fr: 'P. ex. F11 ou Réception — figure dans chaque annonce. Ainsi plusieurs terminaux restent distinguables.',
+      AppLang.de: 'Z. B. F11 oder Empfang – steht in jeder Meldung. So bleiben mehrere Terminals unterscheidbar.',
+      AppLang.en: 'E.g. F11 or Reception – appears in every notice, so several terminals stay distinguishable.',
+    },
     'admin.location.ask': {
       AppLang.fr: 'Demander le lieu de retrait',
       AppLang.de: 'Abholort abfragen',
@@ -521,6 +531,11 @@ class L10n {
       AppLang.fr: 'Une livraison est arrivée à la réception de Cressier sans nom de destinataire.',
       AppLang.de: 'Am Empfang Cressier ist eine Lieferung ohne Empfängernamen eingetroffen.',
       AppLang.en: 'A delivery without a recipient name has arrived at the Cressier reception.',
+    },
+    'mail.terminal': {
+      AppLang.fr: 'Terminal',
+      AppLang.de: 'Terminal',
+      AppLang.en: 'Terminal',
     },
     'mail.carrier': {
       AppLang.fr: 'Transporteur',
