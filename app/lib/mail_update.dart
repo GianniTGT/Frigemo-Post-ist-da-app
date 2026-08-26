@@ -95,7 +95,11 @@ Future<StaffMailUpdate?> fetchStaffUpdate(
       isSecure: imap.ssl,
     );
     await client.login(imap.user.trim(), imap.password);
-    await client.selectInbox();
+    final inbox = await client.selectInbox();
+    // Ein frisch angelegtes Postfach ist leer -- "die letzten 25 Mails"
+    // waeren dann der ungueltige Bereich 1:0, den der Server mit
+    // "BAD Invalid messageset" quittiert.
+    if (inbox.messagesExists == 0) return null;
     // BODY.PEEK laesst die Mails ungelesen -- ein Terminal darf sie den
     // anderen nicht wegschnappen.
     final fetched = await client.fetchRecentMessages(
