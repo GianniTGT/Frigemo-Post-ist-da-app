@@ -643,6 +643,7 @@ void main() {
         'scan.title',
         'scan.hint',
         'scan.error',
+        'scan.permission',
         'tracking.label',
         'send',
         'sending',
