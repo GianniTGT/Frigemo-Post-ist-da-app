@@ -58,6 +58,9 @@ class AppConfig {
 
   static const int maxSearchResults = 8;
 
+  /// Wie oft das Update-Postfach im Hintergrund abgerufen wird -- sofern es
+  /// in der Verwaltung eingerichtet ist.
+  static const Duration staffMailInterval = Duration(minutes: 30);
 }
 
 /// Kurierdienste. Farben sind die Markenfarben, damit der Empfang die

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api_service.dart';
 import '../config.dart';
 import '../l10n.dart';
+import '../mail_update.dart';
 import '../main.dart' show AppColors;
 import '../settings.dart';
 import 'scan_screen.dart';
@@ -64,6 +65,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   Timer? _debounce;
   Timer? _idle;
   Timer? _successTimer;
+  Timer? _staffMailTimer;
 
   L10n get _l => L10n(widget.locale.value);
 
@@ -107,6 +109,35 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     _searchCtrl.addListener(_onSearchChanged);
     // Der Sendeknopf haengt am Inhalt dieses Feldes.
     _otherCarrierCtrl.addListener(_onOtherCarrierChanged);
+    // Update-Postfach: einmal kurz nach dem Start, danach regelmaessig.
+    Timer(const Duration(seconds: 10), _checkStaffMail);
+    _staffMailTimer =
+        Timer.periodic(AppConfig.staffMailInterval, (_) => _checkStaffMail());
+  }
+
+  /// Holt eine neue Personalliste aus dem Update-Postfach, falls eine
+  /// bereitliegt. Laeuft still: ein Fehler hier darf den Empfang nicht
+  /// stoeren, der naechste Abruf kommt von selbst.
+  Future<void> _checkStaffMail() async {
+    if (!widget.settings.imap.isComplete || _submitting) return;
+    final terminal = widget.settings.hasTerminalName
+        ? widget.settings.terminalName
+        : 'Terminal';
+    try {
+      await applyStaffUpdate(
+        widget.settings,
+        _api,
+        confirmTexts: L10nLookup(
+          subject: (count) => _l.t('mailupdate.confirm.subject',
+              args: {'count': '$count', 'terminal': terminal}),
+          body: (count) => _l.t('mailupdate.confirm.body',
+              args: {'count': '$count', 'terminal': terminal}),
+        ),
+      );
+    } catch (_) {
+      // Postfach nicht erreichbar oder Anmeldung abgelehnt -- die bisherige
+      // Liste bleibt gueltig.
+    }
   }
 
   @override
@@ -114,6 +145,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     _debounce?.cancel();
     _idle?.cancel();
     _successTimer?.cancel();
+    _staffMailTimer?.cancel();
     _searchCtrl.dispose();
     _noteCtrl.dispose();
     _otherCarrierCtrl.removeListener(_onOtherCarrierChanged);
@@ -233,6 +265,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       urgent: _kindEntry.urgent,
       note: _noteCtrl.text.trim(),
       trackingCode: _tracking,
+      terminalName: widget.settings.terminalName,
       terminalLang: widget.locale.value,
     );
 

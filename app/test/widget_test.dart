@@ -7,9 +7,11 @@
 // Geprueft wird alles, was ohne Widget-Baum und ohne E-Mail-App pruefbar ist:
 // Personalliste, Suche, Aufbau der mailto-Adresse und die Uebersetzungen.
 
+import 'package:enough_mail/enough_mail.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frigemo_post_terminal/api_service.dart';
 import 'package:frigemo_post_terminal/l10n.dart';
+import 'package:frigemo_post_terminal/mail_update.dart';
 import 'package:frigemo_post_terminal/settings.dart';
 
 const _csv = '''
@@ -28,6 +30,7 @@ DeliveryDraft _draft({
   String? locationLabel,
   String note = '',
   String trackingCode = '',
+  String terminalName = '',
   int quantity = 1,
 }) =>
     DeliveryDraft(
@@ -40,6 +43,7 @@ DeliveryDraft _draft({
       urgent: urgent,
       note: note,
       trackingCode: trackingCode,
+      terminalName: terminalName,
       terminalLang: AppLang.fr,
     );
 
@@ -243,6 +247,16 @@ void main() {
       expect(mail.body, isNot(contains(de.t('tracking.label'))));
     });
 
+    // Mehrere Terminals im selben Werk: der Name sagt, wo die Sendung
+    // abgegeben wurde. Ohne gesetzten Namen fehlt auch die Zeile.
+    test('nennt das Terminal, wenn ein Name gesetzt ist', () {
+      final mail = composeDelivery(_draft(recipient: person, terminalName: 'F11'));
+      expect(mail.body, contains('${de.t('mail.terminal')}: F11'));
+
+      final ohne = composeDelivery(_draft(recipient: person));
+      expect(ohne.body, isNot(contains('${de.t('mail.terminal')}:')));
+    });
+
     test('meldet einen englischsprachigen Empfaenger auf Englisch', () {
       const english = Employee(
         id: '9',
@@ -385,6 +399,22 @@ void main() {
       expect(settings.hasOwnStaffList, isFalse);
     });
 
+    test('merkt sich den Terminal-Namen und behaelt ihn beim Zuruecksetzen', () {
+      final settings = TerminalSettings();
+      expect(settings.hasTerminalName, isFalse);
+
+      settings.setTerminalName('  F11  ');
+      expect(settings.terminalName, 'F11');
+
+      final restored = TerminalSettings.fromJson(settings.toJson());
+      expect(restored.terminalName, 'F11');
+
+      // Wie der Versandzugang: die Identitaet des Geraets uebersteht ein
+      // Zuruecksetzen der Auswahl.
+      settings.resetToDefaults();
+      expect(settings.terminalName, 'F11');
+    });
+
     test('fragt den Abholort standardmaessig nicht', () {
       // Der Fahrer kann nicht wissen, wohin die Sendung im Werk gehoert.
       expect(TerminalSettings().askLocation, isFalse);
@@ -440,6 +470,90 @@ void main() {
       final restored = TerminalSettings.fromJson({'kinds': 'kaputt'});
       expect(restored.kinds.length, kDefaultKinds.length);
       expect(restored.hasSharedMailbox, isFalse);
+    });
+  });
+
+  group('Listen-Update per E-Mail', () {
+    test('beachtet nur Betreffe mit dem Geheimcode', () {
+      expect(subjectMatchesCode('LISTE geheim123', 'geheim123'), isTrue);
+      expect(subjectMatchesCode('liste GEHEIM123 neu', 'geheim123'), isTrue);
+      expect(subjectMatchesCode('Personalliste', 'geheim123'), isFalse);
+      expect(subjectMatchesCode(null, 'geheim123'), isFalse);
+      // Ein leerer Code darf nie alles freischalten.
+      expect(subjectMatchesCode('irgendwas', ''), isFalse);
+      expect(subjectMatchesCode('irgendwas', '   '), isFalse);
+    });
+
+    test('nimmt den ersten brauchbaren CSV-Kandidaten', () {
+      expect(firstValidCsv(['kaputt', _csv]), _csv);
+      expect(firstValidCsv([null, '', 'nur text ohne spalten']), isNull);
+      expect(firstValidCsv(const []), isNull);
+    });
+
+    test('findet die Update-Mail am Betreff und im Text', () {
+      final message = MessageBuilder.buildSimpleTextMessage(
+        const MailAddress('Verwaltung', 'admin@example.com'),
+        [const MailAddress('Terminal', 'update@example.com')],
+        _csv,
+        subject: 'LISTE geheim123',
+        date: DateTime.now(),
+      );
+      final update = pickStaffUpdate([message], code: 'geheim123');
+      expect(update, isNotNull);
+      expect(update!.count, 3);
+      expect(update.sender, 'admin@example.com');
+
+      // Ohne Code im Betreff bleibt die Mail unbeachtet.
+      expect(pickStaffUpdate([message], code: 'anderer-code'), isNull);
+    });
+
+    test('ueberspringt bereits uebernommene Mails', () {
+      final message = MessageBuilder.buildSimpleTextMessage(
+        const MailAddress('Verwaltung', 'admin@example.com'),
+        [const MailAddress('Terminal', 'update@example.com')],
+        _csv,
+        subject: 'LISTE geheim123',
+        date: DateTime.now(),
+      );
+      final future = DateTime.now().add(const Duration(hours: 1));
+      expect(
+        pickStaffUpdate([message], code: 'geheim123', since: future),
+        isNull,
+      );
+    });
+
+    test('Postfach-Zugang: Standardwerte und Speichern', () {
+      const imap = ImapConfig();
+      expect(imap.port, 993);
+      expect(imap.ssl, isTrue);
+      expect(imap.isComplete, isFalse);
+
+      final settings = TerminalSettings();
+      settings.updateImap((s) => s.copyWith(
+            host: 'imap.example.com',
+            user: 'update@example.com',
+            password: 'geheim',
+            secret: 'geheim123',
+          ));
+      expect(settings.imap.isComplete, isTrue);
+
+      final restored = TerminalSettings.fromJson(settings.toJson());
+      expect(restored.imap.host, 'imap.example.com');
+      expect(restored.imap.secret, 'geheim123');
+
+      // Wie der Versandzugang uebersteht er das Zuruecksetzen.
+      settings.resetToDefaults();
+      expect(settings.imap.isComplete, isTrue);
+    });
+
+    test('merkt sich den Stand der letzten Update-Mail', () {
+      final settings = TerminalSettings();
+      expect(settings.staffMailDate, isNull);
+
+      final when = DateTime.fromMillisecondsSinceEpoch(1735686000000);
+      settings.setStaffMailDate(when);
+      final restored = TerminalSettings.fromJson(settings.toJson());
+      expect(restored.staffMailDate, when);
     });
   });
 
@@ -535,6 +649,17 @@ void main() {
         'admin.staff.reset',
         'admin.staff.ok',
         'admin.staff.empty',
+        'admin.mailupdate',
+        'admin.mailupdate.hint',
+        'admin.mailupdate.user',
+        'admin.mailupdate.ssl',
+        'admin.mailupdate.secret',
+        'admin.mailupdate.check',
+        'admin.mailupdate.ok',
+        'admin.mailupdate.none',
+        'admin.mailupdate.fail',
+        'mailupdate.confirm.subject',
+        'mailupdate.confirm.body',
         'admin.smtp',
         'admin.smtp.hint',
         'admin.smtp.host',
@@ -548,6 +673,8 @@ void main() {
         'admin.smtp.test',
         'admin.smtp.test.ok',
         'admin.smtp.test.target',
+        'admin.terminal',
+        'admin.terminal.hint',
         'admin.location.ask',
         'admin.location.hint',
         'admin.save',
@@ -566,6 +693,7 @@ void main() {
         'mail.urgent.prefix',
         'mail.intro',
         'mail.intro.unknown',
+        'mail.terminal',
         'mail.carrier',
         'mail.recipient',
         'mail.note',
