@@ -598,6 +598,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _field(_l.t('admin.mailupdate.secret'), _imapSecret,
               onChanged: (v) => setState(() =>
                   widget.settings.updateImap((s) => s.copyWith(secret: v)))),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              _l.t('admin.mailupdate.clean'),
+              style: const TextStyle(fontSize: 16),
+            ),
+            subtitle: Text(
+              _l.t('admin.mailupdate.clean.hint'),
+              style: const TextStyle(fontSize: 14, color: AppColors.inkSoft),
+            ),
+            value: widget.settings.imap.autoClean,
+            onChanged: (v) => setState(() =>
+                widget.settings.updateImap((s) => s.copyWith(autoClean: v))),
+          ),
+          const SizedBox(height: 8),
           SizedBox(width: double.infinity, child: checkButton),
         ],
       ),

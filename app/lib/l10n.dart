@@ -392,6 +392,16 @@ class L10n {
       AppLang.de: 'Geheimcode (im Betreff)',
       AppLang.en: 'Secret code (in the subject)',
     },
+    'admin.mailupdate.clean': {
+      AppLang.fr: 'Supprimer les anciens e-mails de liste',
+      AppLang.de: 'Alte Listen-Mails automatisch löschen',
+      AppLang.en: 'Delete old list e-mails automatically',
+    },
+    'admin.mailupdate.clean.hint': {
+      AppLang.fr: 'Seul le dernier e-mail de liste reste dans la boîte — les listes dépassées sont des données personnelles dont personne n’a plus besoin.',
+      AppLang.de: 'Nur die neuste Listen-Mail bleibt im Postfach – überholte Listen sind Personendaten, die niemand mehr braucht.',
+      AppLang.en: 'Only the latest list e-mail stays in the mailbox – outdated lists are personal data nobody needs any more.',
+    },
     'admin.mailupdate.check': {
       AppLang.fr: 'Vérifier maintenant',
       AppLang.de: 'Jetzt prüfen',

@@ -81,6 +81,24 @@ StaffMailUpdate? pickStaffUpdate(
   return best;
 }
 
+/// Sequenz-IDs der Update-Mails, die die neuste gueltige Liste ueberholt
+/// hat. Genau diese darf das Terminal loeschen: keine fremden Mails, nie
+/// die neuste Liste -- die braucht ein Terminal, das laenger aus war.
+List<int> supersededUpdateMailIds(
+  List<MimeMessage> messages, {
+  required String code,
+}) {
+  final newest = pickStaffUpdate(messages, code: code);
+  if (newest == null) return const [];
+  return [
+    for (final message in messages)
+      if (message.sequenceId != null &&
+          subjectMatchesCode(message.decodeSubject(), code) &&
+          (message.decodeDate()?.isBefore(newest.date) ?? false))
+        message.sequenceId!,
+  ];
+}
+
 /// Ruft das Postfach ab. Wirft bei Verbindungs- oder Anmeldefehlern -- die
 /// Verwaltung zeigt das an, der Hintergrundabruf schluckt es still.
 Future<StaffMailUpdate?> fetchStaffUpdate(
@@ -106,6 +124,23 @@ Future<StaffMailUpdate?> fetchStaffUpdate(
       messageCount: 25,
       criteria: '(BODY.PEEK[])',
     );
+
+    // Ueberholte Listen-Mails aufraeumen: alte Listen sind Personendaten,
+    // die niemand mehr braucht. Ein Fehler hier darf den Abruf nicht
+    // kippen -- dann bleibt eben eine Mail mehr liegen.
+    if (imap.autoClean) {
+      try {
+        final stale =
+            supersededUpdateMailIds(fetched.messages, code: imap.secret);
+        if (stale.isNotEmpty) {
+          await client.markDeleted(MessageSequence.fromIds(stale));
+          await client.expunge();
+        }
+      } catch (_) {
+        // Postfach erlaubt kein Loeschen oder die Verbindung hakte.
+      }
+    }
+
     return pickStaffUpdate(
       fetched.messages,
       code: imap.secret,

@@ -180,6 +180,11 @@ class ImapConfig {
   /// Der Absender ist faelschbar -- der Code nicht erratbar.
   final String secret;
 
+  /// Ueberholte Listen-Mails beim Abruf loeschen: im Postfach bleibt nur
+  /// die neuste liegen. Alte Listen sind gespeicherte Personendaten, die
+  /// niemand mehr braucht.
+  final bool autoClean;
+
   const ImapConfig({
     this.host = '',
     this.port = 993,
@@ -187,6 +192,7 @@ class ImapConfig {
     this.password = '',
     this.ssl = true,
     this.secret = '',
+    this.autoClean = true,
   });
 
   /// Ohne Server, Benutzer und Geheimcode wird nichts abgerufen.
@@ -202,6 +208,7 @@ class ImapConfig {
     String? password,
     bool? ssl,
     String? secret,
+    bool? autoClean,
   }) =>
       ImapConfig(
         host: host ?? this.host,
@@ -210,6 +217,7 @@ class ImapConfig {
         password: password ?? this.password,
         ssl: ssl ?? this.ssl,
         secret: secret ?? this.secret,
+        autoClean: autoClean ?? this.autoClean,
       );
 
   Map<String, dynamic> toJson() => {
@@ -219,6 +227,7 @@ class ImapConfig {
         'password': password,
         'ssl': ssl,
         'secret': secret,
+        'autoClean': autoClean,
       };
 
   static ImapConfig fromJson(Map<String, dynamic> json) => ImapConfig(
@@ -228,6 +237,7 @@ class ImapConfig {
         password: (json['password'] ?? '').toString(),
         ssl: json['ssl'] != false,
         secret: (json['secret'] ?? '').toString(),
+        autoClean: json['autoClean'] != false,
       );
 }
 
