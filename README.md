@@ -3,15 +3,15 @@
 Terminal de réception pour le site de Cressier : la réception annonce une livraison
 en trois gestes, le destinataire reçoit un e-mail dans sa langue.
 
-Langue par défaut du terminal : **français**, commutable en allemand par le bouton
-en haut à droite. La langue de l'e-mail suit celle du destinataire (colonne `lang`
+Langue par défaut du terminal : **français**, commutable en allemand et en
+anglais par le bouton en haut à droite. La langue de l'e-mail suit celle du destinataire (colonne `lang`
 de la liste du personnel), pas celle du terminal.
 
 ```
 Frigemo-Post-ist-da-app/
 ├── app/                    Terminal Flutter (écran tactile réception)
 │   ├── lib/config.dart         paramètres --dart-define, transporteurs, contacts
-│   ├── lib/l10n.dart           textes FR/DE
+│   ├── lib/l10n.dart           textes FR/DE/EN
 │   ├── lib/api_service.dart    HTTP, timeouts, erreurs typées
 │   └── lib/screens/…           écran principal
 └── server/                 API Node.js + envoi d'e-mails
@@ -85,7 +85,7 @@ place plutôt que de laisser la réception devant une recherche vide.
 
 **Les noms livrés sont des exemples et doivent être remplacés.**
 
-La colonne `lang` (`fr` ou `de`) décide de la langue de l'e-mail pour cette
+La colonne `lang` (`fr`, `de` ou `en`) décide de la langue de l'e-mail pour cette
 personne, indépendamment de la langue du terminal.
 
 ### Réglages sur la tablette
@@ -209,7 +209,7 @@ facultatives, sous **Settings → Secrets and variables → Actions** :
 | Type | Nom | Contenu |
 |---|---|---|
 | Variable | `MAIL_FALLBACK` | boîte commune, p. ex. `paketistda@frigemo.ch` |
-| Variable | `DEFAULT_LANGUAGE` | `fr` (défaut) ou `de` |
+| Variable | `DEFAULT_LANGUAGE` | `fr` (défaut), `de` ou `en` |
 
 Les anciennes variables `API_BASE_URL`, `TERMINAL_ID` et le secret
 `TERMINAL_API_KEY` ne servent plus depuis la suppression du serveur et peuvent

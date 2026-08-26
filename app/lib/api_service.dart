@@ -60,6 +60,10 @@ class DeliveryDraft {
 
   final String note;
 
+  /// Gescannte Sendungsnummer vom Etikett. Leer, wenn nicht gescannt wurde --
+  /// der Scan ist freiwillig, eine Meldung ohne Nummer bleibt gueltig.
+  final String trackingCode;
+
   /// Sprache, in der gemeldet wird, wenn es keinen Empfaenger gibt.
   final AppLang terminalLang;
 
@@ -72,6 +76,7 @@ class DeliveryDraft {
     required this.locationLabel,
     required this.urgent,
     required this.note,
+    this.trackingCode = '',
     required this.terminalLang,
   });
 }
@@ -295,6 +300,8 @@ MailContent composeDelivery(
     if (recipient == null)
       '${l.t('mail.recipient')}: '
           '${named.isNotEmpty ? named : l.t('recipient.unknown')}',
+    if (draft.trackingCode.isNotEmpty)
+      '${l.t('tracking.label')}: ${draft.trackingCode}',
     if (draft.note.isNotEmpty) '${l.t('mail.note')}: ${draft.note}',
     '${l.t('mail.time')}: ${formatStamp(now ?? DateTime.now())}',
     if (urgent) ...['', l.t('mail.urgentNote')],

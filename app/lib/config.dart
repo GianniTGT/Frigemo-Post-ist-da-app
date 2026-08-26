@@ -86,13 +86,17 @@ const List<CarrierOption> kCarriers = [
 class PhoneContact {
   final String labelFr;
   final String labelDe;
+  final String labelEn;
   final String number;
 
-  const PhoneContact(this.labelFr, this.labelDe, this.number);
+  const PhoneContact(this.labelFr, this.labelDe, this.labelEn, this.number);
 }
 
 const List<PhoneContact> kPhoneContacts = [
-  PhoneContact('Réception / Logistique', 'Empfang / Logistik', '+41 31 000 00 00'),
-  PhoneContact('Frigemo siège', 'Frigemo Hauptsitz', '+41 31 111 22 33'),
-  PhoneContact('Sécurité / Portier', 'Sicherheit / Portier', '+41 31 999 88 77'),
+  PhoneContact('Réception / Logistique', 'Empfang / Logistik',
+      'Reception / Logistics', '+41 31 000 00 00'),
+  PhoneContact('Frigemo siège', 'Frigemo Hauptsitz', 'Frigemo headquarters',
+      '+41 31 111 22 33'),
+  PhoneContact('Sécurité / Portier', 'Sicherheit / Portier', 'Security / Gate',
+      '+41 31 999 88 77'),
 ];
