@@ -12,7 +12,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frigemo_post_terminal/api_service.dart';
 import 'package:frigemo_post_terminal/l10n.dart';
 import 'package:frigemo_post_terminal/mail_update.dart';
+import 'package:frigemo_post_terminal/screens/scan_screen.dart';
 import 'package:frigemo_post_terminal/settings.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 const _csv = '''
 name,email,department,lang
@@ -722,6 +724,7 @@ void main() {
         'scan.hint',
         'scan.error',
         'scan.permission',
+        'scan.wrongcode',
         'tracking.label',
         'send',
         'sending',
@@ -828,6 +831,65 @@ void main() {
         expect(de.t(key), isNot(key), reason: 'DE fehlt zu: $key');
         expect(en.t(key), isNot(key), reason: 'EN fehlt zu: $key');
       }
+    });
+  });
+
+  group('Barcode vom Etikett auswählen', () {
+    // Die Werte stammen von zwei echten Etiketten aus Cressier.
+    Barcode strich(String value) =>
+        Barcode(rawValue: value, format: BarcodeFormat.code128);
+    Barcode flaeche(String value) =>
+        Barcode(rawValue: value, format: BarcodeFormat.dataMatrix);
+
+    test('nimmt die Sendungsnummer, nicht den kleinen Leitcode', () {
+      // Genau der Fehler vom Empfang: gemeldet wurde '2307'.
+      expect(
+        pickTrackingCode([
+          strich('2307'),
+          strich('996013148238551546'),
+        ]),
+        '996013148238551546',
+      );
+    });
+
+    test('die Reihenfolge der Kamera spielt keine Rolle', () {
+      expect(
+        pickTrackingCode([
+          strich('996002680700338482'),
+          strich('0509'),
+        ]),
+        '996002680700338482',
+      );
+    });
+
+    test('ein DataMatrix des Absenders gewinnt nie', () {
+      // Auf dem Digitec-Etikett steht ein DataMatrix neben der Adresse.
+      expect(
+        pickTrackingCode([
+          flaeche('AT199851133-4501443337-Returns-Dintikon'),
+          strich('996013148238551546'),
+        ]),
+        '996013148238551546',
+      );
+    });
+
+    test('nur Leitcode im Bild: lieber nichts als das Falsche', () {
+      expect(pickTrackingCode([strich('2307')]), isNull);
+      expect(pickTrackingCode([]), isNull);
+    });
+
+    test('leerer und fehlender Inhalt fallen durch', () {
+      expect(pickTrackingCode([strich('   '), const Barcode()]), isNull);
+    });
+
+    test('Leerraum wird abgeschnitten', () {
+      expect(pickTrackingCode([strich('  996013148238551546  ')]),
+          '996013148238551546');
+    });
+
+    test('kurze Nummern anderer Transporteure gehen durch', () {
+      // GLS 11 Stellen, DHL ab 10 -- die Grenze darf sie nicht wegwerfen.
+      expect(pickTrackingCode([strich('12345678901')]), '12345678901');
     });
   });
 }
