@@ -103,6 +103,15 @@ jobs:
         working-directory: app
         run: flutter pub get
 
+      # Einmalig, um die aufgeloesten Fassungen abzulesen und pubspec.lock
+      # einzuchecken. Wird danach wieder entfernt.
+      - name: Aufgelöste Fassungen anzeigen
+        working-directory: app
+        run: |
+          flutter --version
+          echo "----- pubspec.lock -----"
+          cat pubspec.lock
+
       # Erzeugt die Startsymbole in allen Bildschirmdichten aus
       # assets/icon/. Muss nach `flutter create` und `pub get` laufen: der
       # Ordner android/ und das Werkzeug sind vorher nicht da.

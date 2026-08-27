@@ -11,7 +11,8 @@ app/.dart_tool/
 app/build/
 app/.flutter-plugins
 app/.flutter-plugins-dependencies
-app/pubspec.lock
+# app/pubspec.lock wird bewusst eingecheckt: nur so bauen zwei Laeufe aus
+# demselben Code wirklich dasselbe APK.
 .DS_Store
 
 # Android-Signatur (nie committen!)
