@@ -87,6 +87,12 @@ jobs:
       - name: Internet-Berechtigung eintragen
         run: python3 .github/scripts/add_internet_permission.py app/android
 
+      # Unter dem Icon steht sonst der technische Projektname. Nur der
+      # Anzeigename wird gesetzt, nicht die App-ID -- eine andere ID saehe
+      # Android als fremde App und verweigerte das Update.
+      - name: App-Namen setzen
+        run: python3 .github/scripts/set_app_label.py app/android
+
       - name: Abhängigkeiten laden
         working-directory: app
         run: flutter pub get
@@ -110,6 +116,9 @@ jobs:
           grep -q 'android.permission.INTERNET' \
             app/android/app/src/main/AndroidManifest.xml
           python3 .github/scripts/add_internet_permission.py app/android  # idempotent?
+          grep -q 'android:label="Tiff – Post ist da"' \
+            app/android/app/src/main/AndroidManifest.xml
+          python3 .github/scripts/set_app_label.py app/android  # idempotent?
           python3 .github/scripts/inject_signing.py app/android
           python3 .github/scripts/inject_signing.py app/android   # idempotent?
           gradle=$(ls app/android/app/build.gradle.kts app/android/app/build.gradle 2>/dev/null | head -1)
@@ -201,8 +210,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           mv app/build/app/outputs/flutter-apk/app-release.apk \
-             frigemo-post-terminal-${{ steps.version.outputs.tag }}.apk
-          ls -lh frigemo-post-terminal-*.apk
+             tiff-post-ist-da-${{ steps.version.outputs.tag }}.apk
+          ls -lh tiff-post-ist-da-*.apk
 
       # Das Repository ist oeffentlich, das APK enthaelt aber den
       # TERMINAL_API_KEY: --dart-define-Werte werden einkompiliert und lassen
@@ -232,4 +241,4 @@ jobs:
             ⚠️ Brouillon volontaire : l'APK contient la clé `TERMINAL_API_KEY`,
             extractible du fichier. Ne pas publier cette release tant que le
             dépôt est public.
-          files: frigemo-post-terminal-${{ steps.version.outputs.tag }}.apk
+          files: tiff-post-ist-da-${{ steps.version.outputs.tag }}.apk
