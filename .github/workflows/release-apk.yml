@@ -103,6 +103,13 @@ jobs:
         working-directory: app
         run: flutter pub get
 
+      # Erzeugt die Startsymbole in allen Bildschirmdichten aus
+      # assets/icon/. Muss nach `flutter create` und `pub get` laufen: der
+      # Ordner android/ und das Werkzeug sind vorher nicht da.
+      - name: Startsymbol erzeugen
+        working-directory: app
+        run: dart run flutter_launcher_icons
+
       - name: Statische Analyse
         working-directory: app
         run: flutter analyze --no-fatal-infos
@@ -232,7 +239,7 @@ jobs:
         with:
           draft: true
           tag_name: ${{ steps.version.outputs.tag }}
-          name: Terminal Réception ${{ steps.version.outputs.tag }}
+          name: Tiff – Post ist da ${{ steps.version.outputs.tag }}
           body: |
             Terminal de réception Frigemo Cressier.
 
