@@ -74,9 +74,18 @@ class _ScanScreenState extends State<ScanScreen> {
                             const TextStyle(color: Colors.white, fontSize: 19),
                       ),
                       const SizedBox(height: 12),
-                      // Fuer die Fehlersuche am Telefon: der technische Code.
+                      // Fuer die Fehlersuche: Code plus die genauere Meldung
+                      // der Plattform -- 'genericError' allein sagt nicht,
+                      // welcher der vielen Pfade gescheitert ist.
                       Text(
-                        error.errorCode.name,
+                        [
+                          error.errorCode.name,
+                          if (error.errorDetails?.code != null)
+                            error.errorDetails!.code!,
+                          if (error.errorDetails?.message != null)
+                            error.errorDetails!.message!,
+                        ].join(' · '),
+                        textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Colors.white54,
                           fontSize: 13,
