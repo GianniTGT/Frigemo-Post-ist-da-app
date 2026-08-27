@@ -93,6 +93,12 @@ jobs:
       - name: App-Namen setzen
         run: python3 .github/scripts/set_app_label.py app/android
 
+      # R8 entfernte Bausteine der Barcode-Erkennung, die MLKit nur per
+      # Namens-Nachschlag laedt -- der Scanner scheiterte beim Start mit
+      # einer NullPointerException. Verlaesslichkeit schlaegt APK-Groesse.
+      - name: Code-Schrumpfung im Release abschalten
+        run: python3 .github/scripts/disable_shrink.py app/android
+
       - name: Abhängigkeiten laden
         working-directory: app
         run: flutter pub get
@@ -119,6 +125,7 @@ jobs:
           grep -q 'android:label="Tiff – Post ist da"' \
             app/android/app/src/main/AndroidManifest.xml
           python3 .github/scripts/set_app_label.py app/android  # idempotent?
+          python3 .github/scripts/disable_shrink.py app/android  # idempotent?
           python3 .github/scripts/inject_signing.py app/android
           python3 .github/scripts/inject_signing.py app/android   # idempotent?
           gradle=$(ls app/android/app/build.gradle.kts app/android/app/build.gradle 2>/dev/null | head -1)
