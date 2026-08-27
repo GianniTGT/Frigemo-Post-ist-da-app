@@ -443,6 +443,46 @@ class TerminalSettings extends ChangeNotifier {
     _persist();
   }
 
+  // --- Sicherung -----------------------------------------------------------
+
+  /// Kennzeichen in der Datei. Ohne das wird eine fremde Datei nicht
+  /// uebernommen -- ein halb eingelesenes Terminal waere schlimmer als eins,
+  /// das die Datei abweist.
+  static const String backupFormat = 'tiff-post-ist-da/einstellungen';
+  static const int backupVersion = 1;
+
+  /// Alles, was jemand von Hand eingerichtet hat -- ohne die Personalliste.
+  /// Die sind Personendaten, und die Datei wandert von Geraet zu Geraet;
+  /// die Liste kommt ohnehin ueber das Update-Postfach zurueck.
+  Map<String, dynamic> toBackupJson() => {
+        'format': backupFormat,
+        'version': backupVersion,
+        'settings': toJson()
+          ..remove('staffCsv')
+          ..remove('staffMailDate'),
+      };
+
+  /// Uebernimmt eine Sicherung. Liefert false, wenn die Datei keine ist --
+  /// dann bleibt alles, wie es war. Personalliste und ihr Stand bleiben
+  /// unangetastet: sie stehen nicht in der Sicherung.
+  bool restoreFromBackup(Map<String, dynamic> json) {
+    if (json['format'] != backupFormat) return false;
+    final data = json['settings'];
+    if (data is! Map) return false;
+
+    final restored = fromJson(Map<String, dynamic>.from(data));
+    _kinds = List.of(restored._kinds);
+    _locations = List.of(restored._locations);
+    _pin = restored._pin;
+    _sharedMailbox = restored._sharedMailbox;
+    _smtp = restored._smtp;
+    _askLocation = restored._askLocation;
+    _terminalName = restored._terminalName;
+    _imap = restored._imap;
+    _persist();
+    return true;
+  }
+
   // --- Speichern -----------------------------------------------------------
 
   Map<String, dynamic> toJson() => {

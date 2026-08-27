@@ -4,6 +4,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -196,6 +197,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 20),
               locations,
             ],
+            const SizedBox(height: 20),
+            _backupCard(),
             const SizedBox(height: 20),
             _pinCard(),
             const SizedBox(height: 24),
@@ -619,6 +622,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// Ein neu installiertes Terminal faengt bei null an -- und bei mehreren
+  /// Geraeten will niemand die Zugaenge mehrfach abtippen.
+  Widget _backupCard() => _card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _heading(_l.t('admin.backup')),
+            const SizedBox(height: 6),
+            Text(
+              _l.t('admin.backup.hint'),
+              style: const TextStyle(fontSize: 15, color: AppColors.inkSoft),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
+                  ),
+                  onPressed: _saveBackup,
+                  icon: const Icon(Icons.save_alt, size: 22),
+                  label: Text(
+                    _l.t('admin.backup.save'),
+                    style: const TextStyle(fontSize: 17),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _loadBackup,
+                  icon: const Icon(Icons.settings_backup_restore, size: 22),
+                  label: Text(
+                    _l.t('admin.backup.load'),
+                    style: const TextStyle(fontSize: 17),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
   Widget _locationCard() => _card(
         child: SwitchListTile(
           contentPadding: EdgeInsets.zero,
@@ -892,6 +939,85 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  /// Schreibt die Zugaenge in eine Datei, die sich auf ein weiteres Terminal
+  /// kopieren oder nach einer Neuinstallation zurueckspielen laesst.
+  Future<void> _saveBackup() async {
+    String two(int value) => value.toString().padLeft(2, '0');
+    final now = DateTime.now();
+    final label = widget.settings.hasTerminalName
+        ? widget.settings.terminalName.replaceAll(RegExp('[^A-Za-z0-9]+'), '-')
+        : 'terminal';
+    final bytes = Uint8List.fromList(
+      utf8.encode(jsonEncode(widget.settings.toBackupJson())),
+    );
+
+    String result;
+    try {
+      final saved = await FilePicker.saveFile(
+        fileName:
+            'tiff-post-ist-da-$label-${now.year}-${two(now.month)}-${two(now.day)}.json',
+        bytes: bytes,
+        mimeType: 'application/json',
+      );
+      // Null heisst: abgebrochen -- dann gibt es nichts zu melden.
+      if (saved == null) return;
+      result = _l.t('admin.backup.saved');
+    } catch (e) {
+      result = '$e';
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result)));
+  }
+
+  /// Liest eine Sicherung ein. Eine fremde oder beschaedigte Datei wird
+  /// abgewiesen -- ein halb eingelesenes Terminal waere schlimmer.
+  Future<void> _loadBackup() async {
+    final file = await FilePicker.pickFile();
+    if (!mounted || file == null) return;
+
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+
+    var ok = false;
+    try {
+      final decoded = jsonDecode(utf8.decode(bytes, allowMalformed: true));
+      ok = decoded is Map &&
+          widget.settings
+              .restoreFromBackup(Map<String, dynamic>.from(decoded));
+    } catch (_) {
+      ok = false;
+    }
+    if (ok) setState(_syncFields);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content:
+            Text(_l.t(ok ? 'admin.backup.restored' : 'admin.backup.invalid')),
+      ),
+    );
+  }
+
+  /// Die Eingabefelder halten ihren Text selbst -- nach einer Sicherung
+  /// stuenden sonst weiter die alten Werte darin.
+  void _syncFields() {
+    final settings = widget.settings;
+    _terminalName.text = settings.terminalName;
+    _mailbox.text = settings.sharedMailbox;
+    _host.text = settings.smtp.host;
+    _port.text = '${settings.smtp.port}';
+    _user.text = settings.smtp.user;
+    _password.text = settings.smtp.password;
+    _from.text = settings.smtp.fromAddress;
+    _fromName.text = settings.smtp.fromName;
+    _imapHost.text = settings.imap.host;
+    _imapPort.text = '${settings.imap.port}';
+    _imapUser.text = settings.imap.user;
+    _imapPassword.text = settings.imap.password;
+    _imapSecret.text = settings.imap.secret;
   }
 
   /// Ruft das Update-Postfach von Hand ab -- so laesst sich die Einrichtung

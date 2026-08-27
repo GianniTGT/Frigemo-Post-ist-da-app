@@ -372,6 +372,41 @@ class L10n {
       AppLang.de: 'Keine brauchbare Zeile – die bisherige Liste bleibt bestehen.',
       AppLang.en: 'No usable row — the previous list stays in place.',
     },
+    'admin.backup': {
+      AppLang.fr: 'Sauvegarde des réglages',
+      AppLang.de: 'Einstellungen sichern',
+      AppLang.en: 'Settings backup',
+    },
+    'admin.backup.hint': {
+      AppLang.fr: 'Un terminal réinstallé repart à zéro. La sauvegarde contient les accès, y compris les mots de passe — à garder comme une liste de mots de passe. La liste du personnel n’y figure pas : elle revient par la boîte de mise à jour.',
+      AppLang.de: 'Ein neu installiertes Terminal fängt bei null an. Die Sicherung enthält die Zugänge samt Passwörtern – wie eine Passwortliste aufbewahren. Die Personalliste steht nicht darin: sie kommt über das Update-Postfach zurück.',
+      AppLang.en: 'A reinstalled terminal starts from scratch. The backup contains the access data including passwords – keep it like a password list. The staff list is not included: it comes back through the update mailbox.',
+    },
+    'admin.backup.save': {
+      AppLang.fr: 'Sauvegarder',
+      AppLang.de: 'Sicherung speichern',
+      AppLang.en: 'Save backup',
+    },
+    'admin.backup.load': {
+      AppLang.fr: 'Charger une sauvegarde',
+      AppLang.de: 'Sicherung laden',
+      AppLang.en: 'Load backup',
+    },
+    'admin.backup.saved': {
+      AppLang.fr: 'Sauvegarde enregistrée.',
+      AppLang.de: 'Sicherung gespeichert.',
+      AppLang.en: 'Backup saved.',
+    },
+    'admin.backup.restored': {
+      AppLang.fr: 'Réglages repris de la sauvegarde.',
+      AppLang.de: 'Einstellungen aus der Sicherung übernommen.',
+      AppLang.en: 'Settings taken from the backup.',
+    },
+    'admin.backup.invalid': {
+      AppLang.fr: 'Ce n’est pas une sauvegarde valable — rien n’a été modifié.',
+      AppLang.de: 'Das ist keine gültige Sicherung – es wurde nichts geändert.',
+      AppLang.en: 'This is not a valid backup — nothing was changed.',
+    },
     'admin.mailupdate': {
       AppLang.fr: 'Mise à jour de la liste par e-mail',
       AppLang.de: 'Listen-Update per E-Mail',

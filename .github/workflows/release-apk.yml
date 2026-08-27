@@ -43,6 +43,14 @@ jobs:
     steps:
       - name: Repository auschecken
         uses: actions/checkout@v4
+        with:
+          # Bei einem Pull Request checkt die Action sonst einen Probe-
+          # Zusammenzug aus main und Zweig aus. Der Kontrolllauf soll aber
+          # genau die Spitze des Zweigs pruefen -- und nur die darf er
+          # anschliessend um die pubspec.lock ergaenzen. Bei allen anderen
+          # Anlaessen ist der Ausdruck leer und die Action nimmt wie bisher
+          # den Tag beziehungsweise den gewaehlten Zweig.
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Version bestimmen
         id: version
@@ -67,10 +75,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # Feste Fassung statt "neuste stabile": sonst baut derselbe Code je nach
+      # Tag ein anderes APK. Bewusst anheben, nicht von selbst mitwandern.
       - name: Flutter einrichten
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.47.2
           cache: true
 
       - name: Android-Projekt erzeugen, falls nicht vorhanden
@@ -102,6 +113,26 @@ jobs:
       - name: Abhängigkeiten laden
         working-directory: app
         run: flutter pub get
+
+      # pubspec.lock gehoert ins Repository: ohne sie sucht sich jeder Lauf
+      # die Fremdbibliotheken neu, und genau daran ist hier schon ein Build
+      # zerbrochen. Sie entsteht aber erst durch `flutter pub get` -- fehlt
+      # sie oder hat eine geaenderte Abhaengigkeit sie verschoben, traegt der
+      # Kontrolllauf sie in den Zweig nach.
+      - name: pubspec.lock nachtragen
+        if: >-
+          github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          if [ -z "$(git status --porcelain app/pubspec.lock)" ]; then
+            echo "pubspec.lock ist unverändert - nichts nachzutragen."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/pubspec.lock
+          git commit -m 'pubspec.lock nachtragen'
+          git push origin "HEAD:${{ github.head_ref }}"
 
       # Erzeugt die Startsymbole in allen Bildschirmdichten aus
       # assets/icon/. Muss nach `flutter create` und `pub get` laufen: der

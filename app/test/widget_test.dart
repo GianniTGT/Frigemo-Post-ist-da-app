@@ -589,6 +589,84 @@ void main() {
     });
   });
 
+  group('Sicherung der Einstellungen', () {
+    TerminalSettings eingerichtet() {
+      final settings = TerminalSettings();
+      settings.setTerminalName('F11');
+      settings.setSharedMailbox('paket@frigemo.ch');
+      settings.updateSmtp((s) => s.copyWith(
+            host: 'mx.example.com',
+            port: 465,
+            ssl: true,
+            user: 'info@example.com',
+            password: 'smtp-geheim',
+            fromAddress: 'info@example.com',
+            fromName: 'Empfang',
+          ));
+      settings.updateImap((s) => s.copyWith(
+            host: 'mx.example.com',
+            user: 'update@example.com',
+            password: 'imap-geheim',
+            secret: 'LISTE-21974',
+          ));
+      settings.setStaffCsv(_csv);
+      return settings;
+    }
+
+    test('nimmt die Zugaenge mit, die Personalliste aber nicht', () {
+      final backup = eingerichtet().toBackupJson();
+      expect(backup['format'], TerminalSettings.backupFormat);
+
+      final data = backup['settings'] as Map<String, dynamic>;
+      expect(data['terminalName'], 'F11');
+      expect((data['smtp'] as Map)['password'], 'smtp-geheim');
+      expect((data['imap'] as Map)['secret'], 'LISTE-21974');
+      // Personendaten wandern nicht in eine Datei, die kopiert wird.
+      expect(data.containsKey('staffCsv'), isFalse);
+      expect(data.containsKey('staffMailDate'), isFalse);
+    });
+
+    test('spielt die Zugaenge auf einem leeren Terminal zurueck', () {
+      final backup = eingerichtet().toBackupJson();
+
+      final frisch = TerminalSettings();
+      expect(frisch.smtp.isComplete, isFalse);
+      expect(frisch.restoreFromBackup(backup), isTrue);
+
+      expect(frisch.terminalName, 'F11');
+      expect(frisch.sharedMailbox, 'paket@frigemo.ch');
+      expect(frisch.smtp.host, 'mx.example.com');
+      expect(frisch.smtp.password, 'smtp-geheim');
+      expect(frisch.smtp.port, 465);
+      expect(frisch.smtp.ssl, isTrue);
+      expect(frisch.imap.secret, 'LISTE-21974');
+      expect(frisch.imap.password, 'imap-geheim');
+    });
+
+    test('laesst die vorhandene Personalliste in Ruhe', () {
+      final ziel = TerminalSettings();
+      ziel.setStaffCsv(_csv);
+
+      ziel.restoreFromBackup(eingerichtet().toBackupJson());
+      expect(ziel.hasOwnStaffList, isTrue);
+      expect(employeesFromCsv(ziel.staffCsv!).length, 3);
+    });
+
+    test('weist eine fremde Datei ab, ohne etwas zu aendern', () {
+      final settings = TerminalSettings();
+      settings.setTerminalName('F11');
+
+      expect(settings.restoreFromBackup({'irgendwas': 1}), isFalse);
+      expect(settings.restoreFromBackup({'format': 'fremd'}), isFalse);
+      // Kennzeichen stimmt, Inhalt fehlt -- auch das darf nichts anrichten.
+      expect(
+        settings.restoreFromBackup({'format': TerminalSettings.backupFormat}),
+        isFalse,
+      );
+      expect(settings.terminalName, 'F11');
+    });
+  });
+
   group('L10n', () {
     test('liefert die Texte in allen Sprachen', () {
       expect(fr.t('send'), 'Envoyer la notification');
@@ -682,6 +760,13 @@ void main() {
         'admin.staff.reset',
         'admin.staff.ok',
         'admin.staff.empty',
+        'admin.backup',
+        'admin.backup.hint',
+        'admin.backup.save',
+        'admin.backup.load',
+        'admin.backup.saved',
+        'admin.backup.restored',
+        'admin.backup.invalid',
         'admin.mailupdate',
         'admin.mailupdate.hint',
         'admin.mailupdate.user',
