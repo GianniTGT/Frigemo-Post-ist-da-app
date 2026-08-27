@@ -1,7 +1,7 @@
 name: frigemo_post_terminal
 description: Tiff – Post ist da. Terminal für die Paketannonce am Empfang.
 publish_to: 'none'
-version: 1.7.0+11
+version: 1.7.1+12
 
 environment:
   sdk: '>=3.5.0 <4.0.0'

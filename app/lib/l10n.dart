@@ -177,6 +177,11 @@ class L10n {
       AppLang.de: 'Kamera nicht verfügbar – ohne Scan weiterfahren.',
       AppLang.en: 'Camera unavailable – continue without scanning.',
     },
+    'scan.wrongcode': {
+      AppLang.fr: 'Ce code n’est pas un numéro d’envoi – viser le grand code-barres.',
+      AppLang.de: 'Das ist keine Sendungsnummer – auf den grossen Barcode halten.',
+      AppLang.en: 'That is not a tracking number – aim at the large barcode.',
+    },
     'scan.permission': {
       AppLang.fr: 'L’accès à la caméra est bloqué. Dans les réglages Android, autoriser la caméra pour cette application.',
       AppLang.de: 'Der Kamera-Zugriff ist blockiert. In den Android-Einstellungen dieser App die Kamera erlauben.',
