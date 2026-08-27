@@ -241,18 +241,19 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Tiff – Post ist da ${{ steps.version.outputs.tag }}
           body: |
-            Terminal de réception Frigemo Cressier.
+            Terminal für die Paketannonce am Empfang.
 
-            ${{ steps.version.outputs.demo == 'true' && '**APK DE DÉMONSTRATION** — liste du personnel fictive intégrée, aucun e-mail n''est envoyé, aucun serveur nécessaire. Ne pas utiliser à la réception.' || '' }}
+            ${{ steps.version.outputs.demo == 'true' && '**DEMO-APK** — erfundene Personalliste eingebaut, es wird keine E-Mail verschickt und kein Server gebraucht. Nicht am Empfang einsetzen.' || '' }}
 
-            **Boîte commune :** `${{ vars.MAIL_FALLBACK || 'aucune — annonce uniquement au destinataire' }}`
-            **Signature :** ${{ steps.signing.outputs.signed == 'true' && 'clé de production' || 'clé de debug — une future version signée exigera une réinstallation' }}
+            **Gemeinsames Postfach:** `${{ vars.MAIL_FALLBACK || 'keines — Meldung nur an die Person' }}`
+            **Signatur:** ${{ steps.signing.outputs.signed == 'true' && 'eigener Schlüssel' || 'Debug-Schlüssel — eine spätere signierte Fassung erzwingt eine Neuinstallation' }}
 
-            Installation : télécharger l'APK sur la tablette, autoriser
-            l'installation depuis cette source, puis activer l'épinglage
-            d'écran (Paramètres → Sécurité → Épinglage d'écran).
+            Installation: APK auf die Tablette laden, Installation aus dieser
+            Quelle erlauben, danach die Bildschirm-Anheftung einschalten
+            (Einstellungen → Sicherheit → Bildschirm anheften).
 
-            ⚠️ Brouillon volontaire : l'APK contient la clé `TERMINAL_API_KEY`,
-            extractible du fichier. Ne pas publier cette release tant que le
-            dépôt est public.
+            ⚠️ Bewusst ein Entwurf: Ist `secrets.ADMIN_PIN` gesetzt, steckt der
+            Verwaltungscode einkompiliert im APK und lässt sich aus der Datei
+            auslesen. Solange das Repository öffentlich ist, nicht
+            veröffentlichen.
           files: tiff-post-ist-da-${{ steps.version.outputs.tag }}.apk
